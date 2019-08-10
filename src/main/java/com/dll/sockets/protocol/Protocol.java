@@ -43,21 +43,33 @@ public class Protocol {
 
     public Message generateMessage(Class clazz, String argString) {
         Message message = new Message();
-        byte[] token = new byte[10];
-        System.arraycopy(UUID.randomUUID().toString().getBytes(), 0,  token, 0, 10);
-        byte[] lengthArr = new byte[4];
-        String accessServiceIntface = clazz.getPackage().toString() +  "." + clazz.getName();
-        int accessServiceIntfaceLength = accessServiceIntface.getBytes().length;
-        System.arraycopy(intToByteArray(accessServiceIntfaceLength), 0, lengthArr, 0, 4);
-        Integer length = accessServiceIntfaceLength;
+        byte[] token = generateToken();
         message.setToken(token);
-        byte[] accessService = new byte[length];
-        System.arraycopy(accessServiceIntface.getBytes(), 0, accessService, 0, length);
+        byte[] accessService = getAccessService(clazz);
         message.setAccessService(accessService);
+        byte[] args = getAccessArgs(argString);
+        message.setArgs(args);
+        return message;
+    }
+
+    private byte[] getAccessArgs(String argString) {
         int argsLength = argString.getBytes().length;
         byte[] args = new byte[argsLength];
         System.arraycopy(argString.getBytes(), 0, args, 0, argsLength);
-        message.setArgs(args);
-        return message;
+        return args;
+    }
+
+    private byte[] getAccessService(Class clazz) {
+        String accessServiceIntface = clazz.getPackage().toString() +  "." + clazz.getName();
+        int accessServiceIntfaceLength = accessServiceIntface.getBytes().length;
+        byte[] accessService = new byte[accessServiceIntfaceLength];
+        System.arraycopy(accessServiceIntface.getBytes(), 0, accessService, 0, accessServiceIntfaceLength);
+        return accessService;
+    }
+
+    private byte[] generateToken() {
+        byte[] token = new byte[10];
+        System.arraycopy(UUID.randomUUID().toString().getBytes(), 0,  token, 0, 10);
+        return token;
     }
 }
