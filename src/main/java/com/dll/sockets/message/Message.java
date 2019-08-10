@@ -10,7 +10,7 @@ public class Message {
     private Integer type;
     private byte[] token;
     private byte[] accessService;
-    private byte[] args;
+    private byte[] method;
 
     public byte[] getToken() {
         return token;
@@ -28,24 +28,24 @@ public class Message {
         this.accessService = accessService;
     }
 
-    public byte[] getArgs() {
-        return args;
+    public byte[] getMethod() {
+        return method;
     }
 
-    public void setArgs(byte[] args) {
-        this.args = args;
+    public void setMethod(byte[] method) {
+        this.method = method;
     }
 
     public ByteBuffer toByteBuffer() {
         this.type = 9;
-        this.length = token.length + 4 + accessService.length + args.length;
+        this.length = token.length + 4 + accessService.length + method.length;
         ByteBuffer byteBuffer = ByteBuffer.allocate(this.length + 8);
         byteBuffer.put(Protocol.defaultProtocol().intToByteArray(type));
         byteBuffer.put(Protocol.defaultProtocol().intToByteArray(length));
         byteBuffer.put(token);
         byteBuffer.put(Protocol.defaultProtocol().intToByteArray(accessService.length));
         byteBuffer.put(accessService);
-        byteBuffer.put(args);
+        byteBuffer.put(method);
         byteBuffer.flip();
         return byteBuffer;
     }

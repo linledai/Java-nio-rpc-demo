@@ -22,6 +22,6 @@ public class BusHandler implements Runnable {
     }
 
     private void dealMsg() {
-        logger.info(("token：" + new String(message.getToken()) + ".accessService:" + new String(message.getAccessService()) + ".args:" + new String(message.getArgs())));
+        logger.info(("\n token:" + new String(message.getToken()) + "\n accessService:" + new String(message.getAccessService()) + "\n method:" + new String(message.getMethod())));
     }
 }

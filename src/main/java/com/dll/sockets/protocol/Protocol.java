@@ -36,26 +36,26 @@ public class Protocol {
         message.setAccessService(accessService);
         byte[] args = new byte[msg.length - 14 - length];
         System.arraycopy(msg, 14 + length, args, 0, msg.length - 14 - length);
-        message.setArgs(args);
+        message.setMethod(args);
         return message;
     }
 
 
-    public Message generateMessage(Class clazz, String argString) {
+    public Message generateMessage(Class clazz, String method) {
         Message message = new Message();
         byte[] token = generateToken();
         message.setToken(token);
         byte[] accessService = getAccessService(clazz);
         message.setAccessService(accessService);
-        byte[] args = getAccessArgs(argString);
-        message.setArgs(args);
+        byte[] methodBytes = getAccessMethod(method);
+        message.setMethod(methodBytes);
         return message;
     }
 
-    private byte[] getAccessArgs(String argString) {
-        int argsLength = argString.getBytes().length;
+    private byte[] getAccessMethod(String method) {
+        int argsLength = method.getBytes().length;
         byte[] args = new byte[argsLength];
-        System.arraycopy(argString.getBytes(), 0, args, 0, argsLength);
+        System.arraycopy(method.getBytes(), 0, args, 0, argsLength);
         return args;
     }
 
