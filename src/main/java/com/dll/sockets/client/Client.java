@@ -13,7 +13,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,10 +34,9 @@ public class Client implements Runnable, ShutdownNode {
     private volatile boolean shutdown = false;
     private String name;
     private volatile AtomicInteger invokeTimes = new AtomicInteger(0);
-    private volatile AtomicInteger blockCount = new AtomicInteger(0);
     private volatile LinkedBlockingQueue<RequestMessage> invokeQueue;
-    private volatile Map<String, Object> requestResultFutureMapping = new HashMap<>();
-    private volatile Map<String, Object> requestResultMapping = new HashMap<>();
+    private volatile Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
+    private volatile Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
     private static volatile Set<Client> clients = new HashSet<>();
 
     public Client(String name) {
