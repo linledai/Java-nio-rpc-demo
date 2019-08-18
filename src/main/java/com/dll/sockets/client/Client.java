@@ -111,16 +111,34 @@ public class Client implements Runnable, ShutdownNode {
             if (response != null) {
                 return response;
             }
-            if (blockCount.get() > 1) {
-                System.out.println(blockCount.get());
-            }
-            blockCount.incrementAndGet();
             synchronized (monitor) {
                 monitor.wait();
             }
-            blockCount.decrementAndGet();
             return requestResultMapping.get(token);
         });
+    }
+
+    public Object invokeDirect(Class clazz, String method) throws InterruptedException {
+        final RequestMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateSendMessage(clazz, method);
+        String token = new String(requestMessage.getToken());
+        logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
+        this.invokeQueue.add(requestMessage);
+        logger.debug("请求队列大小：" + invokeQueue.size());
+        final Object monitor = new Object();
+        requestResultFutureMapping.put(token, monitor);
+        Object response = requestResultMapping.get(token);
+        if (response != null) {
+            return response;
+        }
+        synchronized (monitor) {
+            try {
+                monitor.wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                return null;
+            }
+        }
+        return requestResultMapping.get(token);
     }
 
     private ByteBuffer pullInvokeRequest() throws InterruptedException {

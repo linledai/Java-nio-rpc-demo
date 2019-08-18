@@ -37,7 +37,7 @@ public class ClientMain {
         }
         final Method echoMethod = method;
         ExecutorService executorService = Executors.newFixedThreadPool(30);
-        for (int i = 0; i < 200000; i++) {
+        for (int i = 0; i < 100000; i++) {
             executorService.execute(() -> {
                 String echo = null;
                 try {
