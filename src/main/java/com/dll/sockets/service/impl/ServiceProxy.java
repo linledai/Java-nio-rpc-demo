@@ -1,6 +1,7 @@
 package com.dll.sockets.service.impl;
 
 import com.dll.sockets.client.Client;
+import com.dll.sockets.context.Context;
 import com.dll.sockets.exception.ServiceInvokeException;
 import com.dll.sockets.service.Service;
 import com.dll.sockets.utils.ClassUtils;
@@ -17,9 +18,7 @@ public class ServiceProxy implements Service {
 
     @Override
     public String echo() {
-        Client client = new Client("client");
-        Thread thread = new Thread(client);
-        thread.start();
+        Client client = (Client) Context.getBean("client");
         Future<Object> objectFuture = client.invoke(Service.class, ClassUtils.getCurrentMethodName());
         try {
             return (String) objectFuture.get();

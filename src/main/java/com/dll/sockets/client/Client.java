@@ -21,8 +21,10 @@ public class Client implements Runnable, ShutdownNode {
 
     private static Logger logger = LoggerFactory.getLogger(Client.class);
     private static AtomicInteger atomicInteger = new AtomicInteger(0);
-    private static ExecutorService executorServiceRequest = Executors.newFixedThreadPool(2);
-    private static ExecutorService executorServiceResult = Executors.newFixedThreadPool(2);
+    private static ExecutorService clientExecutor = Executors.newFixedThreadPool(1);
+    private static ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
+    private static ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(1);
+    private static ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
 
     private volatile boolean shutdown = false;
     private String name;
@@ -39,6 +41,10 @@ public class Client implements Runnable, ShutdownNode {
         this.name = name;
         this.invokeQueue = new LinkedBlockingQueue<>(cap);
         clients.add(this);
+    }
+
+    public void start() {
+        clientExecutor.execute(this);
     }
 
     public void run() {
@@ -91,7 +97,7 @@ public class Client implements Runnable, ShutdownNode {
         String token = new String(requestMessage.getToken());
         this.invokeQueue.add(requestMessage);
         requestResultFutureMapping.put(token, new Object());
-        return executorServiceResult.submit(() -> {
+        return executorServiceInvoke.submit(() -> {
             Object response = requestResultMapping.get(token);
             if (response != null) {
                 return response;

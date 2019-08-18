@@ -1,8 +1,6 @@
 package com.dll.sockets.server;
 
 import com.dll.sockets.base.ShutdownNode;
-import com.dll.sockets.context.Context;
-import com.dll.sockets.service.impl.MyService;
 
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
@@ -17,21 +15,15 @@ public class Server implements ShutdownNode {
     private ServerSocketChannel serverSocketChannel;
     private volatile boolean shutdown = false;
 
-    public static void main(String[] args) {
-        Context context = new Context();
-        context.register("com.dll.sockets.service.Service", new MyService());
-        new Server();
-    }
-
-    public Server() {
+    public void start() {
         try {
-            init();
+            run();
         } catch (Exception ex) {
             ex.printStackTrace();
         }
     }
 
-    private void init() throws Exception {
+    private void run() throws Exception {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.socket().bind(new InetSocketAddress(80));
