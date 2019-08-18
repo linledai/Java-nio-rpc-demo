@@ -2,17 +2,23 @@ package com.dll.sockets.test;
 
 import com.dll.sockets.client.Client;
 import com.dll.sockets.context.Context;
+import com.dll.sockets.proxy.MyInvocationHandler;
 import com.dll.sockets.service.Service;
-import com.dll.sockets.service.impl.ServiceProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMain {
     private static Logger logger = LoggerFactory.getLogger(ClientMain.class);
+    private static volatile CountDownLatch countDownLatch = new CountDownLatch(200000);
+    private static volatile AtomicInteger atomicInteger = new AtomicInteger(0);
 
     public static void main(String[] args) {
 
@@ -20,13 +26,30 @@ public class ClientMain {
         Client client = new Client("client");
         context.register("client", client);
         client.start();
-        Service service = new ServiceProxy();
-        ExecutorService executorService = Executors.newFixedThreadPool(20);
-        CountDownLatch countDownLatch = new CountDownLatch(20);
-        for (int i = 0; i < 20; i++) {
+        Service service = (Service) Proxy.newProxyInstance(client.getClass().getClassLoader(),
+                new Class[]{Service.class}, new MyInvocationHandler());
+        Method method = null;
+        try {
+            method = Service.class.getMethod("echo");
+        } catch (NoSuchMethodException ex) {
+            logger.error("", ex);
+            return;
+        }
+        final Method echoMethod = method;
+        ExecutorService executorService = Executors.newFixedThreadPool(30);
+        for (int i = 0; i < 200000; i++) {
             executorService.execute(() -> {
-                String echo = service.echo();
-                System.out.println(echo);
+                String echo = null;
+                try {
+                    int count = atomicInteger.incrementAndGet();
+                    System.out.println("外部执行次数：" + count);
+                    Object invoke = echoMethod.invoke(service);
+                    if (invoke != null) {
+                        echo = (String) invoke;
+                    }
+                } catch (IllegalAccessException | InvocationTargetException e) {
+                    logger.error("", e);
+                }
                 countDownLatch.countDown();
             });
         }

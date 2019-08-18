@@ -8,13 +8,9 @@ import com.dll.sockets.utils.ClassUtils;
 import com.dll.sockets.utils.LoggerUtils;
 
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class ServiceProxy implements Service {
-
-    public static ExecutorService executorService = Executors.newFixedThreadPool(1);
 
     @Override
     public String echo() {

@@ -1,5 +1,6 @@
 package com.dll.sockets.protocol;
 
+import com.dll.sockets.base.ShutdownNode;
 import com.dll.sockets.message.ResponseMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,11 +13,13 @@ public class ReturnBusHandler implements Runnable {
     private byte[] data;
     private ResponseMessage message;
     private SocketChannel socketChannel;
+    private ShutdownNode node;
 
-    public ReturnBusHandler(SocketChannel socketChannel, byte[] msg) {
+    public ReturnBusHandler(ShutdownNode node, SocketChannel socketChannel, byte[] msg) {
         this.data = msg;
         this.socketChannel = socketChannel;
         this.message = TypeLengthContentProtocol.defaultProtocol().parseReturnMessage(msg);
+        this.node = node;
     }
 
     @Override
@@ -50,5 +53,13 @@ public class ReturnBusHandler implements Runnable {
 
     public void setData(byte[] data) {
         this.data = data;
+    }
+
+    public ShutdownNode getNode() {
+        return node;
+    }
+
+    public void setNode(ShutdownNode node) {
+        this.node = node;
     }
 }

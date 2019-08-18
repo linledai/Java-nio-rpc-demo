@@ -3,17 +3,23 @@ package com.dll.sockets.protocol;
 import com.dll.sockets.base.ShutdownNode;
 import com.dll.sockets.client.ClientBusHandler;
 import com.dll.sockets.server.ServerBusHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReadHandler {
 
+    private static Logger logger = LoggerFactory.getLogger(ReadHandler.class);
+
     private ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
     private SocketChannel socketChannel;
-    private boolean server = false;
+    private AtomicInteger atomicInteger = new AtomicInteger(0);
+    private volatile boolean server = false;
     ExecutorService executorService;
     ShutdownNode node;
 
@@ -103,10 +109,12 @@ public class ReadHandler {
             byteBuffer.get(content, dataContent.length, content.length - dataContent.length);
             System.arraycopy(dataContent, 0, content, 0, dataContent.length);
         }
+
+        logger.debug("解析包的计数：" + atomicInteger.incrementAndGet());
         if (server) {
-            executorService.execute(new ServerBusHandler(socketChannel, content));
+            executorService.execute(new ServerBusHandler(node, socketChannel, content));
         } else {
-            executorService.execute(new ClientBusHandler(socketChannel, content));
+            executorService.execute(new ClientBusHandler(node, socketChannel, content));
         }
         return byteBuffer.remaining();
     }

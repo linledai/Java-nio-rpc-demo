@@ -21,20 +21,24 @@ public class Client implements Runnable, ShutdownNode {
 
     private static Logger logger = LoggerFactory.getLogger(Client.class);
     private static AtomicInteger atomicInteger = new AtomicInteger(0);
-    private static ExecutorService clientExecutor = Executors.newFixedThreadPool(1);
-    private static ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
-    private static ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(1);
-    private static ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
+    private AtomicInteger sendCount = new AtomicInteger(0);
+    private ExecutorService clientExecutor = Executors.newFixedThreadPool(1);
+    private ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
+    // 该线程池必须大于请求线程池，否则会死锁。
+    private ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(30);
+    private ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
 
     private volatile boolean shutdown = false;
     private String name;
-    private LinkedBlockingQueue<RequestMessage> invokeQueue;
-    private static Map<String, Object> requestResultFutureMapping = new HashMap<>();
-    private static Map<String, Object> requestResultMapping = new HashMap<>();
-    private static Set<Client> clients = new HashSet<>();
+    private volatile AtomicInteger invokeTimes = new AtomicInteger(0);
+    private volatile AtomicInteger blockCount = new AtomicInteger(0);
+    private volatile LinkedBlockingQueue<RequestMessage> invokeQueue;
+    private volatile Map<String, Object> requestResultFutureMapping = new HashMap<>();
+    private volatile Map<String, Object> requestResultMapping = new HashMap<>();
+    private static volatile Set<Client> clients = new HashSet<>();
 
     public Client(String name) {
-        this(name, 100);
+        this(name, 100000);
     }
 
     public Client(String name, int cap) {
@@ -65,6 +69,7 @@ public class Client implements Runnable, ShutdownNode {
                     }
                 }
                 logger.info("Shutdown send.");
+                executorServiceRequest.shutdownNow();
             });
             while (!shutdown) {
                 selector.select();
@@ -79,6 +84,7 @@ public class Client implements Runnable, ShutdownNode {
                 }
             }
             logger.info("Shutdown read.");
+            executorServiceResult.shutdownNow();
         } catch (Exception ex) {
             logger.error("", ex);
             logger.info((name + "failed, total" + atomicInteger .incrementAndGet()));
@@ -95,16 +101,24 @@ public class Client implements Runnable, ShutdownNode {
     public Future<Object> invoke(Class clazz, String method) {
         final RequestMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateSendMessage(clazz, method);
         String token = new String(requestMessage.getToken());
+        logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
         this.invokeQueue.add(requestMessage);
-        requestResultFutureMapping.put(token, new Object());
+        logger.debug("请求队列大小：" + invokeQueue.size());
+        final Object monitor = new Object();
+        requestResultFutureMapping.put(token, monitor);
         return executorServiceInvoke.submit(() -> {
             Object response = requestResultMapping.get(token);
             if (response != null) {
                 return response;
             }
-            synchronized (requestResultFutureMapping.get(token)) {
-                requestResultFutureMapping.get(token).wait();
+            if (blockCount.get() > 1) {
+                System.out.println(blockCount.get());
             }
+            blockCount.incrementAndGet();
+            synchronized (monitor) {
+                monitor.wait();
+            }
+            blockCount.decrementAndGet();
             return requestResultMapping.get(token);
         });
     }
@@ -121,13 +135,17 @@ public class Client implements Runnable, ShutdownNode {
         if (writeBuffer == null) {
             return;
         }
+        logger.debug("发送包的计数:" + sendCount.incrementAndGet());
         socketChannel.write(writeBuffer);
     }
 
-    public static void fillResult(byte[] token, Object result) {
+    public void fillResult(byte[] token, Object result) {
         String tokenKey = new String(token);
         requestResultMapping.put(tokenKey, result);
         Object objectFuture = requestResultFutureMapping.get(tokenKey);
+        if (objectFuture == null) {
+            return;
+        }
         synchronized (objectFuture) {
             objectFuture.notify();
         }
@@ -142,6 +160,8 @@ public class Client implements Runnable, ShutdownNode {
 
     public void shutdown() {
         this.shutdown = true;
+        clientExecutor.shutdownNow();
+        executorServiceInvoke.shutdownNow();
     }
 
     @Override

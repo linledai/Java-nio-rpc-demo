@@ -1,5 +1,6 @@
 package com.dll.sockets.server;
 
+import com.dll.sockets.base.ShutdownNode;
 import com.dll.sockets.context.Context;
 import com.dll.sockets.message.ResponseMessage;
 import com.dll.sockets.protocol.BusHandler;
@@ -13,8 +14,8 @@ import java.nio.channels.SocketChannel;
 
 public class ServerBusHandler extends BusHandler {
 
-    public ServerBusHandler(SocketChannel socketChannel, byte[] msg) {
-        super(socketChannel, msg);
+    public ServerBusHandler(ShutdownNode node, SocketChannel socketChannel, byte[] msg) {
+        super(node, socketChannel, msg);
     }
 
     @Override

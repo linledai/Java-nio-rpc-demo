@@ -1,5 +1,6 @@
 package com.dll.sockets.protocol;
 
+import com.dll.sockets.base.ShutdownNode;
 import com.dll.sockets.message.RequestMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,8 +13,10 @@ public abstract class BusHandler implements Runnable {
     private byte[] data;
     private RequestMessage requestMessage;
     private SocketChannel socketChannel;
+    private ShutdownNode node;
 
-    public BusHandler(SocketChannel socketChannel, byte[] msg) {
+    public BusHandler(ShutdownNode node, SocketChannel socketChannel, byte[] msg) {
+        this.node = node;
         this.data = msg;
         this.socketChannel = socketChannel;
         this.requestMessage = TypeLengthContentProtocol.defaultProtocol().parseSendMessage(msg);
@@ -50,5 +53,13 @@ public abstract class BusHandler implements Runnable {
 
     public void setData(byte[] data) {
         this.data = data;
+    }
+
+    public ShutdownNode getNode() {
+        return node;
+    }
+
+    public void setNode(ShutdownNode node) {
+        this.node = node;
     }
 }
