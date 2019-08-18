@@ -2,7 +2,7 @@ package com.dll.sockets.test;
 
 import com.dll.sockets.client.Client;
 import com.dll.sockets.context.Context;
-import com.dll.sockets.proxy.TimeOutInvocationHandler;
+import com.dll.sockets.proxy.DirectInvocationHandler;
 import com.dll.sockets.service.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,13 +21,12 @@ public class ClientMain {
     private static volatile AtomicInteger count = new AtomicInteger(0);
 
     public static void main(String[] args) {
-
         Context context = new Context();
         Client client = new Client("client");
         context.register("client", client);
         client.start();
         Service service = (Service) Proxy.newProxyInstance(client.getClass().getClassLoader(),
-                new Class[]{Service.class}, new TimeOutInvocationHandler());
+                new Class[]{Service.class}, new DirectInvocationHandler());
         Method method;
         try {
             method = Service.class.getMethod("echo");
@@ -58,9 +57,10 @@ public class ClientMain {
             countDownLatch.await();
             executorService.shutdownNow();
             Client.shutdownAll();
-            logger.info("finish.");
         } catch (Exception ex) {
             logger.error("", ex);
         }
+        logger.info("finish.");
+        Runtime.getRuntime().exit(0);
     }
 }

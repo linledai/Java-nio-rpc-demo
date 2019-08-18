@@ -182,6 +182,8 @@ public class Client implements Runnable, ShutdownNode {
         this.shutdown = true;
         clientExecutor.shutdownNow();
         executorServiceInvoke.shutdownNow();
+        executorServiceRequest.shutdownNow();
+        executorServiceResult.shutdownNow();
     }
 
     @Override
