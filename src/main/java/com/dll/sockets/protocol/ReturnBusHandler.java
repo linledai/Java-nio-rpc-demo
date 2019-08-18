@@ -1,6 +1,6 @@
 package com.dll.sockets.protocol;
 
-import com.dll.sockets.message.ReturnMessage;
+import com.dll.sockets.message.ResponseMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,13 +10,13 @@ public class ReturnBusHandler implements Runnable {
 
     private static Logger logger = LoggerFactory.getLogger(ReturnBusHandler.class);
     private byte[] data;
-    private ReturnMessage message;
+    private ResponseMessage message;
     private SocketChannel socketChannel;
 
     public ReturnBusHandler(SocketChannel socketChannel, byte[] msg) {
         this.data = msg;
         this.socketChannel = socketChannel;
-        this.message = Protocol.defaultProtocol().parseReturnMessage(msg);
+        this.message = TypeLengthContentProtocol.defaultProtocol().parseReturnMessage(msg);
     }
 
     @Override
@@ -28,11 +28,11 @@ public class ReturnBusHandler implements Runnable {
         logger.info("\n token:" + new String(message.getToken()));
     }
 
-    public ReturnMessage getMessage() {
+    public ResponseMessage getMessage() {
         return message;
     }
 
-    public void setMessage(ReturnMessage message) {
+    public void setMessage(ResponseMessage message) {
         this.message = message;
     }
 

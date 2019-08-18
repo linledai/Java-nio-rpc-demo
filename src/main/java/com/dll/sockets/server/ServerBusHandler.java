@@ -1,10 +1,10 @@
 package com.dll.sockets.server;
 
 import com.dll.sockets.context.Context;
-import com.dll.sockets.message.ReturnMessage;
+import com.dll.sockets.message.ResponseMessage;
 import com.dll.sockets.protocol.BusHandler;
-import com.dll.sockets.protocol.Protocol;
 import com.dll.sockets.protocol.SerializeProtocol;
+import com.dll.sockets.protocol.TypeLengthContentProtocol;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -19,10 +19,10 @@ public class ServerBusHandler extends BusHandler {
 
     @Override
     protected void dealMsg() {
-        final byte[] token = this.getMessage().getToken();
+        final byte[] token = this.getRequestMessage().getToken();
         byte[] object = null;
-        byte[] accessService = this.getMessage().getAccessService();
-        byte[] methodName = this.getMessage().getMethod();
+        byte[] accessService = this.getRequestMessage().getAccessService();
+        byte[] methodName = this.getRequestMessage().getMethod();
         Object bean = Context.getBean(new String(accessService));
         Class clazz = bean.getClass();
         Method method;
@@ -38,9 +38,9 @@ public class ServerBusHandler extends BusHandler {
         } catch (IllegalAccessException | InvocationTargetException e) {
             e.printStackTrace();
         }
-        ReturnMessage returnMessage = Protocol.defaultProtocol().generateReturnMessage(token, SerializeProtocol.serializeObject(invoke));
+        ResponseMessage responseMessage = TypeLengthContentProtocol.defaultProtocol().generateReturnMessage(token, SerializeProtocol.serializeObject(invoke));
         try {
-            this.getSocketChannel().write(returnMessage.toSendByteBuffer());
+            this.getSocketChannel().write(responseMessage.toSendByteBuffer());
         } catch (IOException e) {
             e.printStackTrace();
         }

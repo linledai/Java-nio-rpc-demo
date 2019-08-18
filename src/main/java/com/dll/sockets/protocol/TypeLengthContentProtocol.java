@@ -1,14 +1,14 @@
 package com.dll.sockets.protocol;
 
-import com.dll.sockets.message.Message;
-import com.dll.sockets.message.ReturnMessage;
+import com.dll.sockets.message.RequestMessage;
+import com.dll.sockets.message.ResponseMessage;
 
 import java.util.UUID;
 
-public class Protocol {
+public class TypeLengthContentProtocol {
 
-    public static Protocol defaultProtocol() {
-        return new Protocol();
+    public static TypeLengthContentProtocol defaultProtocol() {
+        return new TypeLengthContentProtocol();
     }
 
     public byte[] intToByteArray(int data) {
@@ -24,32 +24,32 @@ public class Protocol {
         return (data[0] << 24) + (data[1] << 16) +(data[2] << 8) +data[3];
     }
 
-    public Message parseSendMessage(byte[] msg) {
-        Message message = new Message();
+    public RequestMessage parseSendMessage(byte[] msg) {
+        RequestMessage requestMessage = new RequestMessage();
         byte[] token = new byte[10];
         System.arraycopy(msg, 0, token, 0, 10);
         byte[] lengthArr = new byte[4];
         System.arraycopy(msg, 10, lengthArr, 0, 4);
         Integer length = byteArrayToInt(lengthArr);
-        message.setToken(token);
+        requestMessage.setToken(token);
         byte[] accessService = new byte[length];
         System.arraycopy(msg, 14, accessService, 0, length);
-        message.setAccessService(accessService);
+        requestMessage.setAccessService(accessService);
         byte[] args = new byte[msg.length - 14 - length];
         System.arraycopy(msg, 14 + length, args, 0, msg.length - 14 - length);
-        message.setMethod(args);
-        return message;
+        requestMessage.setMethod(args);
+        return requestMessage;
     }
 
-    public Message generateSendMessage(Class clazz, String method) {
-        Message message = new Message();
+    public RequestMessage generateSendMessage(Class clazz, String method) {
+        RequestMessage requestMessage = new RequestMessage();
         byte[] token = generateToken();
-        message.setToken(token);
+        requestMessage.setToken(token);
         byte[] accessService = getAccessService(clazz);
-        message.setAccessService(accessService);
+        requestMessage.setAccessService(accessService);
         byte[] methodBytes = getAccessMethod(method);
-        message.setMethod(methodBytes);
-        return message;
+        requestMessage.setMethod(methodBytes);
+        return requestMessage;
     }
 
     private byte[] getAccessMethod(String method) {
@@ -74,15 +74,15 @@ public class Protocol {
     }
 
 
-    public ReturnMessage generateReturnMessage(byte[] token, byte[] object) {
-        ReturnMessage message = new ReturnMessage();
+    public ResponseMessage generateReturnMessage(byte[] token, byte[] object) {
+        ResponseMessage message = new ResponseMessage();
         message.setToken(token);
         message.setObject(object);
         return message;
     }
 
-    public ReturnMessage parseReturnMessage(byte[] msg) {
-        ReturnMessage message = new ReturnMessage();
+    public ResponseMessage parseReturnMessage(byte[] msg) {
+        ResponseMessage message = new ResponseMessage();
         byte[] token = new byte[10];
         System.arraycopy(msg, 0, token, 0, 10);
         byte[] lengthArr = new byte[4];

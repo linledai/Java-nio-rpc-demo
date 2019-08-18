@@ -28,8 +28,7 @@ public class SerializeProtocol {
         ByteArrayInputStream in = new ByteArrayInputStream(object);
         try {
             ObjectInputStream objectInputStream = new ObjectInputStream(in);
-            String objectBytes = (String) objectInputStream.readObject();
-            return objectBytes;
+            return objectInputStream.readObject();
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }

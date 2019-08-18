@@ -1,9 +1,9 @@
 package com.dll.sockets.client;
 
 import com.dll.sockets.base.ShutdownNode;
-import com.dll.sockets.message.Message;
-import com.dll.sockets.protocol.Protocol;
+import com.dll.sockets.message.RequestMessage;
 import com.dll.sockets.protocol.ReadHandler;
+import com.dll.sockets.protocol.TypeLengthContentProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +26,7 @@ public class Client implements Runnable, ShutdownNode {
 
     private volatile boolean shutdown = false;
     private String name;
-    private LinkedBlockingQueue<Message> invokeQueue;
+    private LinkedBlockingQueue<RequestMessage> invokeQueue;
     private static Map<String, Object> requestResultFutureMapping = new HashMap<>();
     private static Map<String, Object> requestResultMapping = new HashMap<>();
     private static Set<Client> clients = new HashSet<>();
@@ -61,7 +61,7 @@ public class Client implements Runnable, ShutdownNode {
                 logger.info("Shutdown send.");
             });
             while (!shutdown) {
-                int select = selector.select();
+                selector.select();
                 Set<SelectionKey> keys = selector.keys();
                 Iterator<SelectionKey> iterator = keys.iterator();
                 while (iterator.hasNext()) {
@@ -87,9 +87,9 @@ public class Client implements Runnable, ShutdownNode {
     }
 
     public Future<Object> invoke(Class clazz, String method) {
-        final Message message = Protocol.defaultProtocol().generateSendMessage(clazz, method);
-        String token = new String(message.getToken());
-        this.invokeQueue.add(message);
+        final RequestMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateSendMessage(clazz, method);
+        String token = new String(requestMessage.getToken());
+        this.invokeQueue.add(requestMessage);
         requestResultFutureMapping.put(token, new Object());
         return executorServiceResult.submit(() -> {
             Object response = requestResultMapping.get(token);
@@ -104,11 +104,11 @@ public class Client implements Runnable, ShutdownNode {
     }
 
     private ByteBuffer pullInvokeRequest() throws InterruptedException {
-        Message message = invokeQueue.poll(3000, TimeUnit.MILLISECONDS);
-        if (message == null) {
+        RequestMessage requestMessage = invokeQueue.poll(3000, TimeUnit.MILLISECONDS);
+        if (requestMessage == null) {
             return null;
         }
-        return message.toSendByteBuffer();
+        return requestMessage.toSendByteBuffer();
     }
 
     private void sendMsg(SocketChannel socketChannel, ByteBuffer writeBuffer) throws IOException {

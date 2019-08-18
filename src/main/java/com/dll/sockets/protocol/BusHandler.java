@@ -1,6 +1,6 @@
 package com.dll.sockets.protocol;
 
-import com.dll.sockets.message.Message;
+import com.dll.sockets.message.RequestMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,13 +10,13 @@ public class BusHandler implements Runnable {
 
     private static Logger logger = LoggerFactory.getLogger(BusHandler.class);
     private byte[] data;
-    private Message message;
+    private RequestMessage requestMessage;
     private SocketChannel socketChannel;
 
     public BusHandler(SocketChannel socketChannel, byte[] msg) {
         this.data = msg;
         this.socketChannel = socketChannel;
-        this.message = Protocol.defaultProtocol().parseSendMessage(msg);
+        this.requestMessage = TypeLengthContentProtocol.defaultProtocol().parseSendMessage(msg);
     }
 
     @Override
@@ -25,15 +25,15 @@ public class BusHandler implements Runnable {
     }
 
     protected void dealMsg() {
-        logger.info(("\n token:" + new String(message.getToken()) + "\n accessService:" + new String(message.getAccessService()) + "\n method:" + new String(message.getMethod())));
+        logger.info(("\n token:" + new String(requestMessage.getToken()) + "\n accessService:" + new String(requestMessage.getAccessService()) + "\n method:" + new String(requestMessage.getMethod())));
     }
 
-    public Message getMessage() {
-        return message;
+    public RequestMessage getRequestMessage() {
+        return requestMessage;
     }
 
-    public void setMessage(Message message) {
-        this.message = message;
+    public void setRequestMessage(RequestMessage requestMessage) {
+        this.requestMessage = requestMessage;
     }
 
     public SocketChannel getSocketChannel() {

@@ -1,10 +1,10 @@
 package com.dll.sockets.message;
 
-import com.dll.sockets.protocol.Protocol;
+import com.dll.sockets.protocol.TypeLengthContentProtocol;
 
 import java.nio.ByteBuffer;
 
-public class Message {
+public class RequestMessage {
     private MessageType type = MessageType.STRING;
     private byte[] token;
     private byte[] accessService;
@@ -37,10 +37,10 @@ public class Message {
     public ByteBuffer toSendByteBuffer() {
         int length = token.length + 4 + accessService.length + method.length;
         ByteBuffer byteBuffer = ByteBuffer.allocate(length + 8);
-        byteBuffer.put(Protocol.defaultProtocol().intToByteArray(this.type.getValue()));
-        byteBuffer.put(Protocol.defaultProtocol().intToByteArray(length));
+        byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(this.type.getValue()));
+        byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(length));
         byteBuffer.put(token);
-        byteBuffer.put(Protocol.defaultProtocol().intToByteArray(accessService.length));
+        byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(accessService.length));
         byteBuffer.put(accessService);
         byteBuffer.put(method);
         byteBuffer.flip();
