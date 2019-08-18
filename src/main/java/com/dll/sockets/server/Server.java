@@ -1,5 +1,9 @@
 package com.dll.sockets.server;
 
+import com.dll.sockets.base.ShutdownNode;
+import com.dll.sockets.context.Context;
+import com.dll.sockets.service.impl.MyService;
+
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -9,10 +13,13 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server {
+public class Server implements ShutdownNode {
     private ServerSocketChannel serverSocketChannel;
+    private volatile boolean shutdown = false;
 
     public static void main(String[] args) {
+        Context context = new Context();
+        context.register("com.dll.sockets.service.Service", new MyService());
         new Server();
     }
 
@@ -44,11 +51,20 @@ public class Server {
                         socketChannel.register(selector, SelectionKey.OP_READ);
                     } else if (key.isReadable()) {
                         key.interestOps(SelectionKey.OP_WRITE);
-                        executorService.execute(new ServerSocketTask(key));
+                        executorService.execute(new ServerSocketTask(this, key));
                         // Thread.yield();
                     }
                 }
             }
         }
+    }
+
+    public void shutdown() {
+        this.shutdown = true;
+    }
+
+    @Override
+    public boolean isShutdown() {
+        return shutdown;
     }
 }

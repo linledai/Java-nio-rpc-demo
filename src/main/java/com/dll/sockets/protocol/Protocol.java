@@ -1,6 +1,7 @@
 package com.dll.sockets.protocol;
 
 import com.dll.sockets.message.Message;
+import com.dll.sockets.message.ReturnMessage;
 
 import java.util.UUID;
 
@@ -23,7 +24,7 @@ public class Protocol {
         return (data[0] << 24) + (data[1] << 16) +(data[2] << 8) +data[3];
     }
 
-    public Message parse(byte[] msg) {
+    public Message parseSendMessage(byte[] msg) {
         Message message = new Message();
         byte[] token = new byte[10];
         System.arraycopy(msg, 0, token, 0, 10);
@@ -40,8 +41,7 @@ public class Protocol {
         return message;
     }
 
-
-    public Message generateMessage(Class clazz, String method) {
+    public Message generateSendMessage(Class clazz, String method) {
         Message message = new Message();
         byte[] token = generateToken();
         message.setToken(token);
@@ -60,7 +60,7 @@ public class Protocol {
     }
 
     private byte[] getAccessService(Class clazz) {
-        String accessServiceIntface = clazz.getPackage().toString() +  "." + clazz.getName();
+        String accessServiceIntface = clazz.getName();
         int accessServiceIntfaceLength = accessServiceIntface.getBytes().length;
         byte[] accessService = new byte[accessServiceIntfaceLength];
         System.arraycopy(accessServiceIntface.getBytes(), 0, accessService, 0, accessServiceIntfaceLength);
@@ -71,5 +71,27 @@ public class Protocol {
         byte[] token = new byte[10];
         System.arraycopy(UUID.randomUUID().toString().getBytes(), 0,  token, 0, 10);
         return token;
+    }
+
+
+    public ReturnMessage generateReturnMessage(byte[] token, byte[] object) {
+        ReturnMessage message = new ReturnMessage();
+        message.setToken(token);
+        message.setObject(object);
+        return message;
+    }
+
+    public ReturnMessage parseReturnMessage(byte[] msg) {
+        ReturnMessage message = new ReturnMessage();
+        byte[] token = new byte[10];
+        System.arraycopy(msg, 0, token, 0, 10);
+        byte[] lengthArr = new byte[4];
+        System.arraycopy(msg, 10, lengthArr, 0, 4);
+        Integer length = byteArrayToInt(lengthArr);
+        message.setToken(token);
+        byte[] object = new byte[length];
+        System.arraycopy(msg, 14, object, 0, length);
+        message.setObject(object);
+        return message;
     }
 }
