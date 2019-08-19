@@ -24,20 +24,22 @@ public class Client implements Runnable, ShutdownNode {
 
     private static Logger logger = LoggerFactory.getLogger(Client.class);
     private static AtomicInteger atomicInteger = new AtomicInteger(0);
-    private AtomicInteger sendCount = new AtomicInteger(0);
+
+    private static volatile Set<Client> clients = new HashSet<>();
+
     private ExecutorService clientExecutor = Executors.newFixedThreadPool(1);
     private ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
-    // 该线程池必须大于请求线程池，否则会死锁。
+    // TODO 该线程池必须大于请求线程池，否则会死锁。
     private ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(30);
     private ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
+    private String name;
+    private AtomicInteger sendCount = new AtomicInteger(0);
 
     private volatile boolean shutdown = false;
-    private String name;
     private volatile AtomicInteger invokeTimes = new AtomicInteger(0);
     private volatile LinkedBlockingQueue<RequestMessage> invokeQueue;
     private volatile Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
     private volatile Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
-    private static volatile Set<Client> clients = new HashSet<>();
 
     public Client(String name) {
         this(name, 100000);
@@ -71,6 +73,7 @@ public class Client implements Runnable, ShutdownNode {
                     }
                 }
                 logger.info("Shutdown send.");
+                invokeQueue.clear();
                 executorServiceRequest.shutdownNow();
             });
             while (!shutdown) {
@@ -86,11 +89,11 @@ public class Client implements Runnable, ShutdownNode {
                 }
             }
             logger.info("Shutdown read.");
-            executorServiceResult.shutdownNow();
         } catch (Exception ex) {
             logger.error("", ex);
             logger.info((name + "failed, total" + atomicInteger .incrementAndGet()));
         } finally {
+            executorServiceResult.shutdownNow();
             if (socketChannel != null) {
                 try {
                     socketChannel.close();
@@ -116,11 +119,11 @@ public class Client implements Runnable, ShutdownNode {
             synchronized (monitor) {
                 monitor.wait();
             }
-            return requestResultMapping.get(token);
+            return requestResultMapping.remove(token);
         });
     }
 
-    public Object invokeDirect(Class clazz, String method) throws InterruptedException {
+    public Object invokeDirect(Class clazz, String method) {
         final RequestMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateSendMessage(clazz, method);
         String token = new String(requestMessage.getToken());
         logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
@@ -137,6 +140,7 @@ public class Client implements Runnable, ShutdownNode {
                 monitor.wait();
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                Thread.interrupted();
                 return null;
             }
         }
@@ -169,6 +173,7 @@ public class Client implements Runnable, ShutdownNode {
         synchronized (objectFuture) {
             objectFuture.notify();
         }
+        requestResultFutureMapping.remove(tokenKey);
     }
 
     public static void shutdownAll() {
@@ -184,6 +189,10 @@ public class Client implements Runnable, ShutdownNode {
         executorServiceInvoke.shutdownNow();
         executorServiceRequest.shutdownNow();
         executorServiceResult.shutdownNow();
+        requestResultFutureMapping.clear();
+        requestResultMapping.clear();
+        invokeQueue.clear();
+        clients.clear();
     }
 
     @Override
