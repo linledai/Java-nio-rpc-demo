@@ -38,8 +38,9 @@ public class ServerSocketTask implements Runnable {
     @Override
     public void run() {
         try {
-            readHandler.doRead();
-            this.selectionKey.interestOps(SelectionKey.OP_READ);
+            if (readHandler.doRead()) {
+                this.selectionKey.interestOps(SelectionKey.OP_READ);
+            }
         } catch (Exception e) {
             logger.error("", e);
             try {

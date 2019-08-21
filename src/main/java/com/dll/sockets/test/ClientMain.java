@@ -49,7 +49,6 @@ public class ClientMain {
                 } catch (Throwable e) {
                     logger.error("", e);
                 }
-                System.out.println(count.get());
                 countDownLatch.countDown();
             });
         }

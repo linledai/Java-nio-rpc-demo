@@ -27,7 +27,7 @@ public class Client implements Runnable, ShutdownNode {
 
     private static volatile Set<Client> clients = new HashSet<>();
 
-    private ExecutorService clientExecutor = Executors.newFixedThreadPool(1);
+    private ExecutorService clientExecutor = Executors.newFixedThreadPool(2);
     private ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
     // TODO 该线程池必须大于请求线程池，否则会死锁。
     private ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(30);
@@ -41,6 +41,8 @@ public class Client implements Runnable, ShutdownNode {
     private volatile Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
     private volatile Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
     private volatile ReadHandler readHandler;
+    private volatile SocketChannel socketChannel;
+    private volatile Semaphore semaphore = new Semaphore(1);
 
     public Client(String name) {
         this(name, 100000);
@@ -53,24 +55,41 @@ public class Client implements Runnable, ShutdownNode {
     }
 
     public void start() {
-        clientExecutor.execute(this);
+        clientExecutor.execute(() -> {
+            while (!shutdown) {
+                try {
+                    semaphore.acquire();
+                } catch (InterruptedException e) {
+                    if (!this.shutdown) {
+                        logger.error("", e);
+                    }
+                    return;
+                }
+                cleanClient();
+                clientExecutor.execute(Client.this);
+            }
+        });
+    }
+
+    // TODO Clean old resource
+    private void cleanClient() {
     }
 
     public void run() {
-        SocketChannel socketChannel = null;
         try {
             socketChannel = SocketChannel.open();
             socketChannel.connect(new InetSocketAddress("localhost", 80));
             socketChannel.configureBlocking(false);
             Selector selector = Selector.open();
             socketChannel.register(selector, SelectionKey.OP_READ);
-            final SocketChannel thisSocketChannel = socketChannel;
             executorServiceRequest.execute(() -> {
                 while (!shutdown) {
                     try {
-                        sendMsg(thisSocketChannel, pullInvokeRequest());
+                        sendMsg(pullInvokeRequest());
                     } catch (IOException | InterruptedException e) {
-                        logger.error("", e);
+                        if (!shutdown) {
+                            logger.error("", e);
+                        }
                     }
                 }
                 logger.info("Shutdown send.");
@@ -85,13 +104,16 @@ public class Client implements Runnable, ShutdownNode {
                     SelectionKey key = iterator.next();
                     if (key.isReadable()) {
                         if (readHandler == null) {
-                            synchronized (thisSocketChannel) {
+                            synchronized (this) {
                                 if (readHandler == null) {
-                                    readHandler = new ReadHandler(this, thisSocketChannel, executorServiceResult, false);
+                                    readHandler = new ReadHandler(this, socketChannel, executorServiceResult, false);
                                 }
                             }
                         }
-                        readHandler.doRead();
+                        if (!readHandler.doRead()) {
+                            semaphore.release();
+                            return;
+                        }
                     }
                 }
             }
@@ -162,7 +184,7 @@ public class Client implements Runnable, ShutdownNode {
         return requestMessage.toSendByteBuffer();
     }
 
-    private void sendMsg(SocketChannel socketChannel, ByteBuffer writeBuffer) throws IOException {
+    private void sendMsg(ByteBuffer writeBuffer) throws IOException {
         if (writeBuffer == null) {
             return;
         }

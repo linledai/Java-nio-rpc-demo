@@ -43,7 +43,10 @@ public class ReadHandler {
         this.node = node;
     }
 
-    public void doRead() throws Exception {
+    /**
+     * socket stream not closed return true, if closed return false
+     */
+    public boolean doRead() throws Exception {
         if (socketChannel == null) {
             throw new NullPointerException("SocketChannel can not be null.");
         }
@@ -55,9 +58,9 @@ public class ReadHandler {
                     byteBuffer.clear();
                     read = socketChannel.read(byteBuffer);
                     if (read == -1) {
-                        break;
+                        return false;
                     } else if (read == 0) {
-                        break;
+                        return true;
                     }
                     byteBuffer.flip();
                 } else {
@@ -100,6 +103,7 @@ public class ReadHandler {
             dataContent = null;
             skip = false;
         }
+        return true;
     }
 
     private int readMessage(byte[] content, byte[] dataContent) {
