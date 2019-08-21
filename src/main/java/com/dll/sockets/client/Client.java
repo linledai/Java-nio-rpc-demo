@@ -40,6 +40,7 @@ public class Client implements Runnable, ShutdownNode {
     private volatile LinkedBlockingQueue<RequestMessage> invokeQueue;
     private volatile Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
     private volatile Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
+    private volatile ReadHandler readHandler;
 
     public Client(String name) {
         this(name, 100000);
@@ -83,7 +84,13 @@ public class Client implements Runnable, ShutdownNode {
                 while (iterator.hasNext()) {
                     SelectionKey key = iterator.next();
                     if (key.isReadable()) {
-                        ReadHandler readHandler = new ReadHandler(this, thisSocketChannel, executorServiceResult, false);
+                        if (readHandler == null) {
+                            synchronized (thisSocketChannel) {
+                                if (readHandler == null) {
+                                    readHandler = new ReadHandler(this, thisSocketChannel, executorServiceResult, false);
+                                }
+                            }
+                        }
                         readHandler.doRead();
                     }
                 }
@@ -176,7 +183,7 @@ public class Client implements Runnable, ShutdownNode {
         requestResultFutureMapping.remove(tokenKey);
     }
 
-    public static void shutdownAll() {
+    public static synchronized void shutdownAll() {
         for (Client client : clients) {
             client.shutdown();
         }
@@ -184,6 +191,9 @@ public class Client implements Runnable, ShutdownNode {
 
 
     public void shutdown() {
+        if (this.shutdown) {
+            return;
+        }
         this.shutdown = true;
         clientExecutor.shutdownNow();
         executorServiceInvoke.shutdownNow();

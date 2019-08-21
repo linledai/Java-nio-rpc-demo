@@ -16,8 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMain {
     private static Logger logger = LoggerFactory.getLogger(ClientMain.class);
-    private static volatile Integer threadCount = 1000;
-    private static volatile CountDownLatch countDownLatch = new CountDownLatch(threadCount);
+    private static volatile Integer taskCount = 3000;
+    private static volatile CountDownLatch countDownLatch = new CountDownLatch(taskCount);
     private static volatile AtomicInteger count = new AtomicInteger(0);
 
     public static void main(String[] args) {
@@ -35,8 +35,8 @@ public class ClientMain {
             return;
         }
         final Method echoMethod = method;
-        ExecutorService executorService = Executors.newFixedThreadPool(30);
-        for (int i = 0; i < threadCount; i++) {
+        ExecutorService executorService = Executors.newFixedThreadPool(taskCount);
+        for (int i = 0; i < taskCount; i++) {
             executorService.execute(() -> {
                 try {
                     Object invoke = echoMethod.invoke(service);

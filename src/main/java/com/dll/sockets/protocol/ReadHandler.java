@@ -20,8 +20,13 @@ public class ReadHandler {
     private SocketChannel socketChannel;
     private AtomicInteger atomicInteger = new AtomicInteger(0);
     private volatile boolean server = false;
-    ExecutorService executorService;
-    ShutdownNode node;
+    private ExecutorService executorService;
+    private ShutdownNode node;
+
+    private int remain = 0;
+    private boolean skip = false;
+    private int length = 0;
+    private byte[] dataContent = null;
 
     public ReadHandler(ShutdownNode node, SocketChannel socketChannel, ExecutorService executorService) {
         this(node, socketChannel, Executors.newFixedThreadPool(1), true);
@@ -42,10 +47,6 @@ public class ReadHandler {
         if (socketChannel == null) {
             throw new NullPointerException("SocketChannel can not be null.");
         }
-        int remain = 0;
-        boolean skip = false;
-        int length = 0;
-        byte[] dataContent = null;
         while (!node.isShutdown()) {
 //            Thread.yield();
             if (remain < 9 || remain < length) {
@@ -56,8 +57,7 @@ public class ReadHandler {
                     if (read == -1) {
                         break;
                     } else if (read == 0) {
-                        Thread.sleep(20);
-                        continue;
+                        break;
                     }
                     byteBuffer.flip();
                 } else {

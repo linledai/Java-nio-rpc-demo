@@ -41,7 +41,9 @@ public class ServerBusHandler extends BusHandler {
         }
         ResponseMessage responseMessage = TypeLengthContentProtocol.defaultProtocol().generateReturnMessage(token, SerializeProtocol.serializeObject(invoke));
         try {
-            this.getSocketChannel().write(responseMessage.toSendByteBuffer());
+            synchronized (this.getSocketChannel()) {
+                this.getSocketChannel().write(responseMessage.toSendByteBuffer());
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

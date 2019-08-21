@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -14,24 +16,35 @@ public class ServerSocketTask implements Runnable {
 
     private static Logger logger = LoggerFactory.getLogger(ServerSocketTask.class);
     private static ExecutorService executorService = Executors.newFixedThreadPool(5);
-    private SocketChannel socketChannel;
-    private ReadHandler readHandler;
+    private static volatile Map<SocketChannel, ReadHandler> socketContext = new ConcurrentHashMap<>();
+    private final SocketChannel socketChannel;
+    private volatile ReadHandler readHandler;
+    private volatile SelectionKey selectionKey;
 
     public ServerSocketTask(Server server, SelectionKey key) {
+        selectionKey = key;
         this.socketChannel = (SocketChannel) key.channel();
-        readHandler = new ReadHandler(server, socketChannel, executorService);
+        ReadHandler mappingReadHandler = socketContext.get(socketChannel);
+        synchronized (ServerSocketTask.class) {
+            if (mappingReadHandler == null) {
+                this.readHandler = new ReadHandler(server, socketChannel, executorService);
+                socketContext.put(socketChannel, this.readHandler);
+            } else {
+                this.readHandler = mappingReadHandler;
+            }
+        }
     }
 
     @Override
     public void run() {
         try {
             readHandler.doRead();
+            this.selectionKey.interestOps(SelectionKey.OP_READ);
         } catch (Exception e) {
             logger.error("", e);
-        } finally {
             try {
                 this.socketChannel.close();
-            } catch (IOException e) {
+            } catch (IOException ex) {
                 logger.warn("Close socket exception");
             }
         }
