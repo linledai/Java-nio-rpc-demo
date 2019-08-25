@@ -9,14 +9,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,6 +39,11 @@ public class Client implements Runnable, ShutdownNode {
     private volatile ReadHandler readHandler;
     private volatile SocketChannel socketChannel;
     private volatile Semaphore semaphore = new Semaphore(1);
+    private volatile int retry = 0;
+    private volatile ThreadLocal<RequestMessage> messageThreadLocal = new ThreadLocal<>();
+    private volatile Map<String, RequestMessage> sendedMessage = new ConcurrentHashMap<>();
+
+    private final Object sendLock = new Object();
 
     public Client(String name) {
         this(name, 100000);
@@ -57,6 +58,9 @@ public class Client implements Runnable, ShutdownNode {
     public void start() {
         clientExecutor.execute(() -> {
             while (!shutdown) {
+                if (!waitForRetry()) {
+                    return;
+                }
                 try {
                     semaphore.acquire();
                 } catch (InterruptedException e) {
@@ -71,6 +75,18 @@ public class Client implements Runnable, ShutdownNode {
         });
     }
 
+    private boolean waitForRetry() {
+        if (retry > 3) {
+            try {
+                Thread.sleep((retry - 3) * 5000);
+            } catch (InterruptedException e) {
+                Thread.interrupted();
+                return false;
+            }
+        }
+        return true;
+    }
+
     // TODO Clean old resource
     private void cleanClient() {
     }
@@ -78,18 +94,53 @@ public class Client implements Runnable, ShutdownNode {
     public void run() {
         try {
             socketChannel = SocketChannel.open();
-            socketChannel.connect(new InetSocketAddress("localhost", 80));
+            try {
+                socketChannel.connect(new InetSocketAddress("localhost", 80));
+            } catch (Exception ex) {
+                retry++;
+                semaphore.release();
+                return;
+            }
+            retry = 0;
+            synchronized (sendLock) {
+                sendLock.notify();
+            }
+            Collection<RequestMessage> requestMessages = sendedMessage.values();
+            logger.warn("重试发送的包的数字:" + requestMessages.size());
+            invokeQueue.addAll(requestMessages);
+            sendedMessage.clear();
+            readHandler = new ReadHandler(this, socketChannel, executorServiceResult, false);
             socketChannel.configureBlocking(false);
             Selector selector = Selector.open();
             socketChannel.register(selector, SelectionKey.OP_READ);
             executorServiceRequest.execute(() -> {
+                boolean isWaitForRetry = false;
                 while (!shutdown) {
                     try {
-                        sendMsg(pullInvokeRequest());
+                        if (!waitForRetry()) {
+                            return;
+                        }
+                        if (isWaitForRetry) {
+                            RequestMessage requestMessage = messageThreadLocal.get();
+                            sendMsg(requestMessage);
+                            logger.warn("处理了一次失败的发送." + (requestMessage == null));
+                            return;
+                        } else {
+                            sendMsg(pullInvokeRequest());
+                        }
                     } catch (IOException | InterruptedException e) {
                         if (!shutdown) {
                             logger.error("", e);
                         }
+                        synchronized (sendLock) {
+                            try {
+                                sendLock.wait(3000);
+                            } catch (InterruptedException e1) {
+                                Thread.interrupted();
+                                return;
+                            }
+                        }
+                        isWaitForRetry = true;
                     }
                 }
                 logger.info("Shutdown send.");
@@ -103,16 +154,16 @@ public class Client implements Runnable, ShutdownNode {
                 while (iterator.hasNext()) {
                     SelectionKey key = iterator.next();
                     if (key.isReadable()) {
-                        if (readHandler == null) {
-                            synchronized (this) {
-                                if (readHandler == null) {
-                                    readHandler = new ReadHandler(this, socketChannel, executorServiceResult, false);
-                                }
+                        try {
+                            if (!readHandler.doRead()) {
+                                semaphore.release();
+                                return;
                             }
-                        }
-                        if (!readHandler.doRead()) {
-                            semaphore.release();
-                            return;
+                        } catch (IOException ex) {
+                            if (!shutdown) {
+                                semaphore.release();
+                                return;
+                            }
                         }
                     }
                 }
@@ -122,11 +173,13 @@ public class Client implements Runnable, ShutdownNode {
             logger.error("", ex);
             logger.info((name + "failed, total" + atomicInteger .incrementAndGet()));
         } finally {
-            executorServiceResult.shutdownNow();
-            if (socketChannel != null) {
-                try {
-                    socketChannel.close();
-                } catch (IOException e) {
+            if (shutdown) {
+                executorServiceResult.shutdownNow();
+                if (socketChannel != null) {
+                    try {
+                        socketChannel.close();
+                    } catch (IOException e) {
+                    }
                 }
             }
         }
@@ -148,6 +201,7 @@ public class Client implements Runnable, ShutdownNode {
             synchronized (monitor) {
                 monitor.wait();
             }
+            sendedMessage.remove(token);
             return requestResultMapping.remove(token);
         });
     }
@@ -160,8 +214,9 @@ public class Client implements Runnable, ShutdownNode {
         logger.debug("请求队列大小：" + invokeQueue.size());
         final Object monitor = new Object();
         requestResultFutureMapping.put(token, monitor);
-        Object response = requestResultMapping.get(token);
+        Object response = requestResultMapping.remove(token);
         if (response != null) {
+            sendedMessage.remove(token);
             return response;
         }
         synchronized (monitor) {
@@ -173,36 +228,43 @@ public class Client implements Runnable, ShutdownNode {
                 return null;
             }
         }
-        return requestResultMapping.get(token);
+        sendedMessage.remove(token);
+        return requestResultMapping.remove(token);
     }
 
-    private ByteBuffer pullInvokeRequest() throws InterruptedException {
-        RequestMessage requestMessage = invokeQueue.poll(3000, TimeUnit.MILLISECONDS);
+    private RequestMessage pullInvokeRequest() throws InterruptedException {
+        RequestMessage requestMessage = messageThreadLocal.get();
+        if (requestMessage != null) {
+            return requestMessage;
+        }
+        requestMessage = invokeQueue.poll(3000, TimeUnit.MILLISECONDS);
         if (requestMessage == null) {
             return null;
         }
-        return requestMessage.toSendByteBuffer();
+        messageThreadLocal.set(requestMessage);
+        return requestMessage;
     }
 
-    private void sendMsg(ByteBuffer writeBuffer) throws IOException {
-        if (writeBuffer == null) {
+    private void sendMsg(RequestMessage requestMessage) throws IOException {
+        if (requestMessage == null) {
             return;
         }
+        socketChannel.write(requestMessage.toSendByteBuffer());
+        sendedMessage.put(new String(requestMessage.getToken()), requestMessage);
         logger.debug("发送包的计数:" + sendCount.incrementAndGet());
-        socketChannel.write(writeBuffer);
+        messageThreadLocal.remove();
     }
 
     public void fillResult(byte[] token, Object result) {
         String tokenKey = new String(token);
         requestResultMapping.put(tokenKey, result);
-        Object objectFuture = requestResultFutureMapping.get(tokenKey);
+        Object objectFuture = requestResultFutureMapping.remove(tokenKey);
         if (objectFuture == null) {
             return;
         }
         synchronized (objectFuture) {
             objectFuture.notify();
         }
-        requestResultFutureMapping.remove(tokenKey);
     }
 
     public static synchronized void shutdownAll() {

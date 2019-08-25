@@ -12,11 +12,12 @@ import java.lang.reflect.Proxy;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMain {
     private static Logger logger = LoggerFactory.getLogger(ClientMain.class);
-    private static volatile Integer taskCount = 3000;
+    private static volatile Integer taskCount = 10000;
     private static volatile CountDownLatch countDownLatch = new CountDownLatch(taskCount);
     private static volatile AtomicInteger count = new AtomicInteger(0);
 
@@ -53,7 +54,7 @@ public class ClientMain {
             });
         }
         try {
-            countDownLatch.await();
+            countDownLatch.await(100000, TimeUnit.MILLISECONDS);
             executorService.shutdownNow();
             Client.shutdownAll();
         } catch (Exception ex) {
