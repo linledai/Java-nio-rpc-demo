@@ -24,10 +24,14 @@ public abstract class BusHandler implements Runnable {
 
     @Override
     public void run() {
-        dealMsg();
+        try {
+            dealMsg();
+        } catch (Throwable throwable) {
+            logger.error("", throwable);
+        }
     }
 
-    protected void dealMsg() {
+    protected void dealMsg() throws Throwable {
         logger.info(("\n token:" + new String(requestMessage.getToken()) + "\n accessService:" + new String(requestMessage.getAccessService()) + "\n method:" + new String(requestMessage.getMethod())));
     }
 

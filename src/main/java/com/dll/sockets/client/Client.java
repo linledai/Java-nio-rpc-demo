@@ -221,7 +221,7 @@ public class Client implements Runnable, ShutdownNode {
         }
         synchronized (monitor) {
             try {
-                monitor.wait();
+                monitor.wait(10000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 Thread.interrupted();

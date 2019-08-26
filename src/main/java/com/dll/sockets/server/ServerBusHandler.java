@@ -6,46 +6,39 @@ import com.dll.sockets.message.ResponseMessage;
 import com.dll.sockets.protocol.BusHandler;
 import com.dll.sockets.protocol.SerializeProtocol;
 import com.dll.sockets.protocol.TypeLengthContentProtocol;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.channels.SocketChannel;
 
 public class ServerBusHandler extends BusHandler {
+
+    private static Logger logger = LoggerFactory.getLogger(ServerBusHandler.class);
 
     public ServerBusHandler(ShutdownNode node, SocketChannel socketChannel, byte[] msg) {
         super(node, socketChannel, msg);
     }
 
     @Override
-    protected void dealMsg() {
+    protected void dealMsg() throws Throwable {
         final byte[] token = this.getRequestMessage().getToken();
-        byte[] object = null;
         byte[] accessService = this.getRequestMessage().getAccessService();
         byte[] methodName = this.getRequestMessage().getMethod();
-        Object bean = Context.getBean(new String(accessService));
-        Class clazz = bean.getClass();
-        Method method;
+        String serviceName = new String(accessService);
+        Object bean = Context.getBean(serviceName);
+        Class clazz;
         try {
-            method = clazz.getMethod(new String(methodName));
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-            return;
+            clazz = bean.getClass().getClassLoader().loadClass(serviceName);
+        } catch (ClassNotFoundException e) {
+            logger.error("", e);
+            clazz = bean.getClass();
         }
-        Object invoke = null;
-        try {
-            invoke = method.invoke(bean);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            e.printStackTrace();
-        }
+        Method method = clazz.getMethod(new String(methodName));
+        Object invoke = method.invoke(bean);
         ResponseMessage responseMessage = TypeLengthContentProtocol.defaultProtocol().generateReturnMessage(token, SerializeProtocol.serializeObject(invoke));
-        try {
-            synchronized (this.getSocketChannel()) {
-                this.getSocketChannel().write(responseMessage.toSendByteBuffer());
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        synchronized (this.getSocketChannel()) {
+            this.getSocketChannel().write(responseMessage.toSendByteBuffer());
         }
     }
 }

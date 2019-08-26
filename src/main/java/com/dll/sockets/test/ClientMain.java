@@ -17,14 +17,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMain {
     private static Logger logger = LoggerFactory.getLogger(ClientMain.class);
-    private static volatile Integer taskCount = 10000;
+    private static volatile Integer taskCount = 1000;
     private static volatile CountDownLatch countDownLatch = new CountDownLatch(taskCount);
     private static volatile AtomicInteger count = new AtomicInteger(0);
 
     public static void main(String[] args) {
-        Context context = new Context();
         Client client = new Client("client");
-        context.register("client", client);
+        Context.register("client", client);
         client.start();
         Service service = (Service) Proxy.newProxyInstance(client.getClass().getClassLoader(),
                 new Class[]{Service.class}, new DirectInvocationHandler());
