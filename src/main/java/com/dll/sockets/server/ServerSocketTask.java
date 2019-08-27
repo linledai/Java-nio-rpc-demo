@@ -14,12 +14,13 @@ import java.util.concurrent.Executors;
 
 public class ServerSocketTask implements Runnable {
 
-    private static Logger logger = LoggerFactory.getLogger(ServerSocketTask.class);
-    private static ExecutorService executorService = Executors.newFixedThreadPool(5);
-    private static volatile Map<SocketChannel, ReadHandler> socketContext = new ConcurrentHashMap<>();
-    private final SocketChannel socketChannel;
-    private volatile ReadHandler readHandler;
-    private volatile SelectionKey selectionKey;
+    private final static Logger logger = LoggerFactory.getLogger(ServerSocketTask.class);
+    private final static ExecutorService executorService = Executors.newFixedThreadPool(5);
+    private final static Map<SocketChannel, ReadHandler> socketContext = new ConcurrentHashMap<>();
+
+    private SocketChannel socketChannel;
+    private ReadHandler readHandler;
+    private SelectionKey selectionKey;
 
     public ServerSocketTask(Server server, SelectionKey key) {
         selectionKey = key;
@@ -40,6 +41,8 @@ public class ServerSocketTask implements Runnable {
         try {
             if (readHandler.doRead()) {
                 this.selectionKey.interestOps(SelectionKey.OP_READ);
+            } else {
+                socketContext.remove(socketChannel);
             }
         } catch (Exception e) {
             logger.error("", e);
@@ -47,6 +50,8 @@ public class ServerSocketTask implements Runnable {
                 this.socketChannel.close();
             } catch (IOException ex) {
                 logger.warn("Close socket exception");
+            } finally {
+                socketContext.remove(socketChannel);
             }
         }
     }

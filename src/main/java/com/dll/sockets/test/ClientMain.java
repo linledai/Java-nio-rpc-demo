@@ -16,8 +16,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMain {
-    private static Logger logger = LoggerFactory.getLogger(ClientMain.class);
-    private static volatile Integer taskCount = 1000;
+    private static final Logger logger = LoggerFactory.getLogger(ClientMain.class);
+    private static final Integer taskCount = 10000;
     private static volatile CountDownLatch countDownLatch = new CountDownLatch(taskCount);
     private static volatile AtomicInteger count = new AtomicInteger(0);
 

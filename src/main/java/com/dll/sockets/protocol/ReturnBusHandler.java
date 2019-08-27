@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.channels.SocketChannel;
 
-public class ReturnBusHandler implements Runnable {
+public abstract class ReturnBusHandler implements Runnable {
 
     private static Logger logger = LoggerFactory.getLogger(ReturnBusHandler.class);
     private byte[] data;

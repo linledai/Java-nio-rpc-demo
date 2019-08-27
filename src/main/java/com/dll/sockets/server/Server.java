@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server implements ShutdownNode {
+
     private ServerSocketChannel serverSocketChannel;
     private volatile boolean shutdown = false;
 

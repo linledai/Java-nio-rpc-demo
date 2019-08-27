@@ -18,32 +18,31 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Client implements Runnable, ShutdownNode {
 
-    private static Logger logger = LoggerFactory.getLogger(Client.class);
-    private static AtomicInteger atomicInteger = new AtomicInteger(0);
+    private static final Logger logger = LoggerFactory.getLogger(Client.class);
+    private static final AtomicInteger atomicInteger = new AtomicInteger(0);
+    private static final Set<Client> clients = new HashSet<>();
 
-    private static volatile Set<Client> clients = new HashSet<>();
-
-    private ExecutorService clientExecutor = Executors.newFixedThreadPool(2);
-    private ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
+    private final ExecutorService clientExecutor = Executors.newFixedThreadPool(2);
+    private final ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
     // TODO 该线程池必须大于请求线程池，否则会死锁。
-    private ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(30);
-    private ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
-    private String name;
-    private AtomicInteger sendCount = new AtomicInteger(0);
+    private final ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(30);
+    private final ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
+    private final AtomicInteger sendCount = new AtomicInteger(0);
+    private final AtomicInteger invokeTimes = new AtomicInteger(0);
+    private final Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
+    private final Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
+    private final Map<String, RequestMessage> sendedMessage = new ConcurrentHashMap<>();
+    private final ThreadLocal<RequestMessage> messageThreadLocal = new ThreadLocal<>();
+    private final Semaphore semaphore = new Semaphore(1);
+    private final Object sendLock = new Object();
 
+    private String name;
+    private LinkedBlockingQueue<RequestMessage> invokeQueue;
+
+    private volatile int retry = 0;
     private volatile boolean shutdown = false;
-    private volatile AtomicInteger invokeTimes = new AtomicInteger(0);
-    private volatile LinkedBlockingQueue<RequestMessage> invokeQueue;
-    private volatile Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
-    private volatile Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
     private volatile ReadHandler readHandler;
     private volatile SocketChannel socketChannel;
-    private volatile Semaphore semaphore = new Semaphore(1);
-    private volatile int retry = 0;
-    private volatile ThreadLocal<RequestMessage> messageThreadLocal = new ThreadLocal<>();
-    private volatile Map<String, RequestMessage> sendedMessage = new ConcurrentHashMap<>();
-
-    private final Object sendLock = new Object();
 
     public Client(String name) {
         this(name, 100000);
@@ -221,7 +220,7 @@ public class Client implements Runnable, ShutdownNode {
         }
         synchronized (monitor) {
             try {
-                monitor.wait(10000);
+                monitor.wait(30000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 Thread.interrupted();

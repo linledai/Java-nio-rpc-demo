@@ -16,20 +16,20 @@ public class ReadHandler {
 
     private static Logger logger = LoggerFactory.getLogger(ReadHandler.class);
 
-    private volatile ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-    private volatile SocketChannel socketChannel;
-    private volatile AtomicInteger atomicInteger = new AtomicInteger(0);
-    private volatile boolean server = false;
-    private volatile ExecutorService executorService;
-    private volatile ShutdownNode node;
+    private final ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+    private final AtomicInteger atomicInteger = new AtomicInteger(0);
+    private final SocketChannel socketChannel;
+    private final ExecutorService executorService;
+    private final ShutdownNode node;
 
+    private boolean server = false;
     private int remain = 0;
     private boolean skip = false;
     private int length = 0;
     private byte[] dataContent = null;
 
     public ReadHandler(ShutdownNode node, SocketChannel socketChannel, ExecutorService executorService) {
-        this(node, socketChannel, Executors.newFixedThreadPool(1), true);
+        this(node, socketChannel, executorService, true);
     }
 
     public ReadHandler(ShutdownNode node, SocketChannel socketChannel, Boolean server) {
