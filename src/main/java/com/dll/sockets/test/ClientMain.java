@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMain {
     private static final Logger logger = LoggerFactory.getLogger(ClientMain.class);
-    private static final Integer taskCount = 10000;
+    private static final Integer taskCount = 1000;
     private static volatile CountDownLatch countDownLatch = new CountDownLatch(taskCount);
     private static volatile AtomicInteger count = new AtomicInteger(0);
 
@@ -29,7 +29,7 @@ public class ClientMain {
                 new Class[]{Service.class}, new DirectInvocationHandler());
         Method method;
         try {
-            method = Service.class.getMethod("echo");
+            method = Service.class.getMethod("echo", Integer.class);
         } catch (NoSuchMethodException ex) {
             logger.error("", ex);
             return;
@@ -37,9 +37,10 @@ public class ClientMain {
         final Method echoMethod = method;
         ExecutorService executorService = Executors.newFixedThreadPool(taskCount);
         for (int i = 0; i < taskCount; i++) {
+            final Integer echoCount = i + 1;
             executorService.execute(() -> {
                 try {
-                    Object invoke = echoMethod.invoke(service);
+                    Object invoke = echoMethod.invoke(service, echoCount);
                     if (invoke != null) {
                         String echo = (String) invoke;
                         logger.info(count.incrementAndGet() + " Response message:" + echo);

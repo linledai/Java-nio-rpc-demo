@@ -9,7 +9,14 @@ public class MyService implements Service {
 
     @Override
     @LogAspect
-    public String echo() {
+    public String echo(Integer count) {
+        return "hello, my friends!" + count;
+    }
+
+
+    @Override
+    @LogAspect
+    public String echoTest() {
         return "hello, my friends!";
     }
 }

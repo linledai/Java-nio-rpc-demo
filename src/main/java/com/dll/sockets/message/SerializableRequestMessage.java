@@ -1,14 +1,17 @@
 package com.dll.sockets.message;
 
+import com.dll.sockets.protocol.SerializeProtocol;
 import com.dll.sockets.protocol.TypeLengthContentProtocol;
 
 import java.nio.ByteBuffer;
 
-public class RequestMessage implements ByteBufferMessage {
+public class SerializableRequestMessage implements ByteBufferMessage {
+
     private MessageType type = MessageType.DEFAULT;
     private byte[] token;
-    private byte[] accessService;
-    private byte[] method;
+    private String accessService;
+    private String methodName;
+    private Object[] args;
 
     public byte[] getToken() {
         return token;
@@ -18,31 +21,37 @@ public class RequestMessage implements ByteBufferMessage {
         this.token = token;
     }
 
-    public byte[] getAccessService() {
+    public String getAccessService() {
         return accessService;
     }
 
-    public void setAccessService(byte[] accessService) {
+    public void setAccessService(String accessService) {
         this.accessService = accessService;
     }
 
-    public byte[] getMethod() {
-        return method;
+    public String getMethodName() {
+        return methodName;
     }
 
-    public void setMethod(byte[] method) {
-        this.method = method;
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
+    }
+
+    public Object[] getArgs() {
+        return args;
+    }
+
+    public void setArgs(Object[] args) {
+        this.args = args;
     }
 
     public ByteBuffer toSendByteBuffer() {
-        int length = token.length + 4 + accessService.length + method.length;
+        byte[] bytes = SerializeProtocol.serializeObject(this);
+        int length = bytes.length;
         ByteBuffer byteBuffer = ByteBuffer.allocate(length + 8);
         byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(this.type.getValue()));
         byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(length));
-        byteBuffer.put(token);
-        byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(accessService.length));
-        byteBuffer.put(accessService);
-        byteBuffer.put(method);
+        byteBuffer.put(bytes);
         byteBuffer.flip();
         return byteBuffer;
     }

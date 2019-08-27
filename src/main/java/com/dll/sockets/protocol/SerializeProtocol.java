@@ -1,16 +1,14 @@
 package com.dll.sockets.protocol;
 
+import com.dll.sockets.utils.LoggerUtils;
+
 import java.io.*;
 
 public class SerializeProtocol {
 
-
     public static byte[] serializeObject(Object object) {
         ByteArrayOutputStream out;
         ObjectOutputStream objectOutputStream;
-//        if (object instanceof String) {
-//            object = Base64.getEncoder().encode(((String) object).getBytes());
-//        }
         try {
             out = new ByteArrayOutputStream();
             objectOutputStream = new ObjectOutputStream(out);
@@ -19,7 +17,7 @@ public class SerializeProtocol {
             byte[] bytes = out.toByteArray();
             return bytes;
         } catch (IOException e) {
-            e.printStackTrace();
+            LoggerUtils.error(e);
             return null;
         }
     }

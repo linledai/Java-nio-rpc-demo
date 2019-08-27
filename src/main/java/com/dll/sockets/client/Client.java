@@ -1,13 +1,14 @@
 package com.dll.sockets.client;
 
 import com.dll.sockets.base.ShutdownNode;
-import com.dll.sockets.message.RequestMessage;
+import com.dll.sockets.message.ByteBufferMessage;
 import com.dll.sockets.protocol.ReadHandler;
 import com.dll.sockets.protocol.TypeLengthContentProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -31,13 +32,13 @@ public class Client implements Runnable, ShutdownNode {
     private final AtomicInteger invokeTimes = new AtomicInteger(0);
     private final Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
     private final Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
-    private final Map<String, RequestMessage> sendedMessage = new ConcurrentHashMap<>();
-    private final ThreadLocal<RequestMessage> messageThreadLocal = new ThreadLocal<>();
+    private final Map<String, ByteBufferMessage> sendedMessage = new ConcurrentHashMap<>();
+    private final ThreadLocal<ByteBufferMessage> messageThreadLocal = new ThreadLocal<>();
     private final Semaphore semaphore = new Semaphore(1);
     private final Object sendLock = new Object();
 
     private String name;
-    private LinkedBlockingQueue<RequestMessage> invokeQueue;
+    private LinkedBlockingQueue<ByteBufferMessage> invokeQueue;
 
     private volatile int retry = 0;
     private volatile boolean shutdown = false;
@@ -104,7 +105,7 @@ public class Client implements Runnable, ShutdownNode {
             synchronized (sendLock) {
                 sendLock.notify();
             }
-            Collection<RequestMessage> requestMessages = sendedMessage.values();
+            Collection<ByteBufferMessage> requestMessages = sendedMessage.values();
             logger.warn("重试发送的包的数字:" + requestMessages.size());
             invokeQueue.addAll(requestMessages);
             sendedMessage.clear();
@@ -120,7 +121,7 @@ public class Client implements Runnable, ShutdownNode {
                             return;
                         }
                         if (isWaitForRetry) {
-                            RequestMessage requestMessage = messageThreadLocal.get();
+                            ByteBufferMessage requestMessage = messageThreadLocal.get();
                             sendMsg(requestMessage);
                             logger.warn("处理了一次失败的发送." + (requestMessage == null));
                             return;
@@ -184,8 +185,8 @@ public class Client implements Runnable, ShutdownNode {
         }
     }
 
-    public Future<Object> invoke(Class clazz, String method) {
-        final RequestMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateSendMessage(clazz, method);
+    public Future<Object> invoke(Class clazz, String method, Serializable... args) {
+        final ByteBufferMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateRequestMessagePackage(clazz, method, args);
         String token = new String(requestMessage.getToken());
         logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
         this.invokeQueue.add(requestMessage);
@@ -205,8 +206,8 @@ public class Client implements Runnable, ShutdownNode {
         });
     }
 
-    public Object invokeDirect(Class clazz, String method) {
-        final RequestMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateSendMessage(clazz, method);
+    public Object invokeDirect(Class clazz, String method, Serializable[] args) {
+        final ByteBufferMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateRequestMessagePackage(clazz, method, args);
         String token = new String(requestMessage.getToken());
         logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
         this.invokeQueue.add(requestMessage);
@@ -231,8 +232,8 @@ public class Client implements Runnable, ShutdownNode {
         return requestResultMapping.remove(token);
     }
 
-    private RequestMessage pullInvokeRequest() throws InterruptedException {
-        RequestMessage requestMessage = messageThreadLocal.get();
+    private ByteBufferMessage pullInvokeRequest() throws InterruptedException {
+        ByteBufferMessage requestMessage = messageThreadLocal.get();
         if (requestMessage != null) {
             return requestMessage;
         }
@@ -244,7 +245,7 @@ public class Client implements Runnable, ShutdownNode {
         return requestMessage;
     }
 
-    private void sendMsg(RequestMessage requestMessage) throws IOException {
+    private void sendMsg(ByteBufferMessage requestMessage) throws IOException {
         if (requestMessage == null) {
             return;
         }

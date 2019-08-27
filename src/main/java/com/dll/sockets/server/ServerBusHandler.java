@@ -2,10 +2,14 @@ package com.dll.sockets.server;
 
 import com.dll.sockets.base.ShutdownNode;
 import com.dll.sockets.context.Context;
+import com.dll.sockets.message.ByteBufferMessage;
+import com.dll.sockets.message.RequestMessage;
 import com.dll.sockets.message.ResponseMessage;
+import com.dll.sockets.message.SerializableRequestMessage;
 import com.dll.sockets.protocol.BusHandler;
 import com.dll.sockets.protocol.SerializeProtocol;
 import com.dll.sockets.protocol.TypeLengthContentProtocol;
+import com.dll.sockets.utils.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,10 +26,23 @@ public class ServerBusHandler extends BusHandler {
 
     @Override
     protected void dealMsg() throws Throwable {
-        final byte[] token = this.getRequestMessage().getToken();
-        byte[] accessService = this.getRequestMessage().getAccessService();
-        byte[] methodName = this.getRequestMessage().getMethod();
-        String serviceName = new String(accessService);
+        ByteBufferMessage byteBufferMessage = this.getRequestMessage();
+        final byte[] token = byteBufferMessage.getToken();
+        String serviceName;
+        String methodName;
+        Object[] args = null;
+        if (byteBufferMessage instanceof RequestMessage) {
+            RequestMessage requestMessage = (RequestMessage) byteBufferMessage;
+            byte[] accessService = requestMessage.getAccessService();
+            serviceName = new String(accessService);
+            byte[] method = requestMessage.getMethod();
+            methodName = new String(method);
+        } else {
+            SerializableRequestMessage requestMessage = (SerializableRequestMessage) byteBufferMessage;
+            serviceName = requestMessage.getAccessService();
+            methodName = requestMessage.getMethodName();
+            args = requestMessage.getArgs();
+        }
         Object bean = Context.getBean(serviceName);
         Class clazz;
         try {
@@ -34,8 +51,13 @@ public class ServerBusHandler extends BusHandler {
             logger.error("", e);
             clazz = bean.getClass();
         }
-        Method method = clazz.getMethod(new String(methodName));
-        Object invoke = method.invoke(bean);
+        Method method = clazz.getMethod(methodName, ClassUtils.getArgsClassArray(args));
+        Object invoke;
+        if (args != null) {
+            invoke = method.invoke(bean, args);
+        } else {
+            invoke = method.invoke(bean);
+        }
         ResponseMessage responseMessage = TypeLengthContentProtocol.defaultProtocol().generateReturnMessage(token, SerializeProtocol.serializeObject(invoke));
         synchronized (this.getSocketChannel()) {
             this.getSocketChannel().write(responseMessage.toSendByteBuffer());

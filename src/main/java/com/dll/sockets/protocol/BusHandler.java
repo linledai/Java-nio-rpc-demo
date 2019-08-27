@@ -1,7 +1,7 @@
 package com.dll.sockets.protocol;
 
 import com.dll.sockets.base.ShutdownNode;
-import com.dll.sockets.message.RequestMessage;
+import com.dll.sockets.message.ByteBufferMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,7 +11,7 @@ public abstract class BusHandler implements Runnable {
 
     private static Logger logger = LoggerFactory.getLogger(BusHandler.class);
     private byte[] data;
-    private RequestMessage requestMessage;
+    private ByteBufferMessage requestMessage;
     private SocketChannel socketChannel;
     private ShutdownNode node;
 
@@ -19,7 +19,7 @@ public abstract class BusHandler implements Runnable {
         this.node = node;
         this.data = msg;
         this.socketChannel = socketChannel;
-        this.requestMessage = TypeLengthContentProtocol.defaultProtocol().parseSendMessage(msg);
+        this.requestMessage = TypeLengthContentProtocol.defaultProtocol().parseRequestMessagePackage(msg);
     }
 
     @Override
@@ -32,14 +32,13 @@ public abstract class BusHandler implements Runnable {
     }
 
     protected void dealMsg() throws Throwable {
-        logger.info(("\n token:" + new String(requestMessage.getToken()) + "\n accessService:" + new String(requestMessage.getAccessService()) + "\n method:" + new String(requestMessage.getMethod())));
     }
 
-    public RequestMessage getRequestMessage() {
+    public ByteBufferMessage getRequestMessage() {
         return requestMessage;
     }
 
-    public void setRequestMessage(RequestMessage requestMessage) {
+    public void setRequestMessage(ByteBufferMessage requestMessage) {
         this.requestMessage = requestMessage;
     }
 

@@ -4,8 +4,8 @@ import com.dll.sockets.protocol.TypeLengthContentProtocol;
 
 import java.nio.ByteBuffer;
 
-public class ResponseMessage {
-    private MessageType type = MessageType.STRING;
+public class ResponseMessage implements ByteBufferMessage {
+    private MessageType type = MessageType.DEFAULT;
     private byte[] token;
     private byte[] object;
 
