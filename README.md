@@ -10,5 +10,3 @@
 ### \src\main\java\com\dll\sockets\protocol\BusHandler.java  请求逻辑base handler
 ### \src\main\java\com\dll\sockets\protocol\ReturnBusHandler.java 返回逻辑base handler
 ### \src\main\java\com\dll\sockets\test 下面俩个测试case: ClientMain 为客户端, ServerMain服务端
-
-## 待改进(目前默认方法的接口为空参, 后续再考虑扩展报文加方法参数)
