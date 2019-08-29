@@ -199,7 +199,7 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
         return invokeInternal(token);
     }
 
-    protected abstract T invokeInternal(String token) throws InterruptedException;
+    abstract protected T invokeInternal(String token) throws InterruptedException;
 
     Object removeResourceByToken(String token) {
         sendedMessage.remove(token);
@@ -294,5 +294,37 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
 
     public String getName() {
         return name;
+    }
+
+    public class ClientFutureTask implements Callable<Object> {
+
+        private String token;
+
+        public ClientFutureTask(String token) {
+            this.token = token;
+        }
+
+        @Override
+        public Object call() {
+            Object response = getResponse(token);
+            if (response != null) {
+                removeResourceByToken(token);
+                finishRequest();
+                return response;
+            }
+            Object monitor = getMonitor(token);
+            synchronized (monitor) {
+                try {
+                    monitor.wait(30000);
+                } catch (InterruptedException e) {
+                    logger.error("", e);
+                    Thread.interrupted();
+                } finally {
+                    response = removeResourceByToken(token);
+                    finishRequest();
+                }
+            }
+            return response;
+        }
     }
 }

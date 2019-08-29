@@ -24,27 +24,7 @@ public class FutureClient extends Client<Future<Object>> {
     }
 
     public Future<Object> invokeInternal(String token) throws InterruptedException {
-        return executorServiceInvoke.submit(() -> {
-            Object response = getResponse(token);
-            if (response != null) {
-                removeResourceByToken(token);
-                finishRequest();
-                return response;
-            }
-            Object monitor = getMonitor(token);
-            try {
-                synchronized (monitor) {
-                    monitor.wait();
-                }
-            } catch (InterruptedException e) {
-                logger.error("", e);
-                Thread.interrupted();
-            } finally {
-                response = removeResourceByToken(token);
-                finishRequest();
-            }
-            return response;
-        });
+        return executorServiceInvoke.submit(new ClientFutureTask(token));
     }
 
     public void shutdownInternal() {

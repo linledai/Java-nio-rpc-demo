@@ -20,25 +20,7 @@ public class DirectClient extends Client<Object> {
     }
 
     public Object invokeInternal(String token) throws InterruptedException {
-        Object response = getResponse(token);
-        if (response != null) {
-            removeResourceByToken(token);
-            finishRequest();
-            return response;
-        }
-        Object monitor = getMonitor(token);
-        synchronized (monitor) {
-            try {
-                monitor.wait(30000);
-            } catch (InterruptedException e) {
-                logger.error("", e);
-                Thread.interrupted();
-            } finally {
-                response = removeResourceByToken(token);
-                finishRequest();
-            }
-        }
-        return response;
+        return new ClientFutureTask(token).call();
     }
 
     @Override
