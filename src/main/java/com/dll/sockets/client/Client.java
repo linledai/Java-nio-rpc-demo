@@ -16,7 +16,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public abstract class Client<T> implements Runnable, ShutdownNode {
+public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHandlerClient {
 
     private static final Logger logger = LoggerFactory.getLogger(Client.class);
     private static final AtomicInteger atomicInteger = new AtomicInteger(0);
@@ -41,7 +41,6 @@ public abstract class Client<T> implements Runnable, ShutdownNode {
 
     private LinkedBlockingQueue<ByteBufferMessage> invokeQueue;
     private Semaphore maxUnFinishRequest;
-
     private String name;
 
     Client(String name, Integer maxQueueSize) {
@@ -243,7 +242,7 @@ public abstract class Client<T> implements Runnable, ShutdownNode {
         }
     }
 
-    public static synchronized void shutdownAll() {
+    public static void shutdownAll() {
         for (Client client : clients) {
             client.shutdown();
         }
@@ -270,7 +269,7 @@ public abstract class Client<T> implements Runnable, ShutdownNode {
         return invokeQueue;
     }
 
-    public void shutdown() {
+    public synchronized void shutdown() {
         if (this.shutdown) {
             return;
         }

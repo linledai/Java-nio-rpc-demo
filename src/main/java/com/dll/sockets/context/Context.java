@@ -2,6 +2,7 @@ package com.dll.sockets.context;
 
 import com.dll.sockets.annotation.RpcService;
 import com.dll.sockets.proxy.BaseInvocationHandler;
+import com.dll.sockets.service.ServiceBean;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -38,7 +39,11 @@ public class Context {
     }
 
     public static Object getBean(String name) {
-        return beanMap.get(name);
+        Object object = beanMap.get(name);
+        if (object instanceof ServiceBean) {
+            return ((ServiceBean) object).getServiceBean();
+        }
+        return object;
     }
 
     public static Object getAnnotationBean(Class annotation) {

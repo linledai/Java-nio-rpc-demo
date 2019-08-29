@@ -4,15 +4,12 @@ import com.dll.sockets.client.Client;
 import com.dll.sockets.client.DirectClient;
 import com.dll.sockets.client.FutureClient;
 import com.dll.sockets.context.Context;
-import com.dll.sockets.proxy.DirectInvocationHandler;
-import com.dll.sockets.proxy.TimeOutInvocationHandler;
 import com.dll.sockets.service.Service;
+import com.dll.sockets.service.ServiceBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,30 +27,26 @@ public class ClientMain {
         Client futureClient = new FutureClient("futureClient");
         Context.register("directClient", directClient);
         Context.register("futureClient", futureClient);
+        Context.register("directService", new ServiceBean(directClient, Service.class));
+        Context.register("futureService", new ServiceBean(futureClient, Service.class));
+        directClient.start();
+        futureClient.start();
         long test1Begin = System.currentTimeMillis();
-        testClient(directClient);
+        testService("directService");
         long test1End = System.currentTimeMillis();
-        testClient(futureClient);
+        testService("futureService");
         long test2End = System.currentTimeMillis();
         logger.info("DirectClient cost:" + (test1End - test1Begin));
         logger.info("FutureClient cost:" + (test2End - test1End));
         Runtime.getRuntime().exit(0);
     }
 
-    private static void testClient(Client client) {
+    private static void testService(String serviceBeanName) {
         CountDownLatch countDownLatch = new CountDownLatch(taskCount);
-        InvocationHandler invocationHandler;
-        if (client instanceof DirectClient) {
-            invocationHandler = new DirectInvocationHandler();
-        } else {
-            invocationHandler = new TimeOutInvocationHandler();
-        }
-        client.start();
-        Service service = (Service) Proxy.newProxyInstance(client.getClass().getClassLoader(),
-                new Class[]{Service.class}, invocationHandler);
+        Service service = (Service) Context.getBean(serviceBeanName);
         Method method;
         try {
-            method = Service.class.getMethod("echo", Integer.class);
+            method = service.getClass().getMethod("echo", Integer.class);
         } catch (NoSuchMethodException ex) {
             logger.error("", ex);
             return;
@@ -80,8 +73,6 @@ public class ClientMain {
         try {
             countDownLatch.await(100000, TimeUnit.MILLISECONDS);
             executorService.shutdownNow();
-            client.shutdown();
-            Context.deRegister(client.getName());
         } catch (Exception ex) {
             logger.error("", ex);
         }

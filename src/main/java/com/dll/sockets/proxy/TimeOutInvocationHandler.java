@@ -26,10 +26,6 @@ public class TimeOutInvocationHandler implements InvocationHandler {
         return null;
     }
 
-    public Integer getTimeoutSeconds() {
-        return timeoutSeconds;
-    }
-
     public void setTimeoutSeconds(Integer timeoutSeconds) {
         this.timeoutSeconds = timeoutSeconds;
     }
