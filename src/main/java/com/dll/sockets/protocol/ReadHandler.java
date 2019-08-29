@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReadHandler {
@@ -30,10 +29,6 @@ public class ReadHandler {
 
     public ReadHandler(ShutdownNode node, SocketChannel socketChannel, ExecutorService executorService) {
         this(node, socketChannel, executorService, true);
-    }
-
-    public ReadHandler(ShutdownNode node, SocketChannel socketChannel, Boolean server) {
-        this(node, socketChannel, Executors.newFixedThreadPool(1), server);
     }
 
     public ReadHandler(ShutdownNode node, SocketChannel socketChannel, ExecutorService executorService, Boolean server) {

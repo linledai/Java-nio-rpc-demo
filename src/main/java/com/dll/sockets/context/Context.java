@@ -29,6 +29,10 @@ public class Context {
         beanMap.put(serviceName, bean);
     }
 
+    public static void deRegister(String serviceName) {
+        beanMap.remove(serviceName);
+    }
+
     public static void registerAnnotation(Class annotation, Object bean) {
         annotationMap.put(annotation, bean);
     }

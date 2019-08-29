@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -17,7 +16,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Client implements Runnable, ShutdownNode {
+public abstract class Client<T> implements Runnable, ShutdownNode {
 
     private static final Logger logger = LoggerFactory.getLogger(Client.class);
     private static final AtomicInteger atomicInteger = new AtomicInteger(0);
@@ -25,33 +24,30 @@ public class Client implements Runnable, ShutdownNode {
 
     private final ExecutorService clientExecutor = Executors.newFixedThreadPool(2);
     private final ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
-    // TODO 该线程池必须大于请求线程池，否则会死锁。
-    private final ExecutorService executorServiceInvoke = Executors.newFixedThreadPool(30);
     private final ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
     private final AtomicInteger sendCount = new AtomicInteger(0);
-    private final AtomicInteger invokeTimes = new AtomicInteger(0);
-    private final Map<String, Object> requestResultFutureMapping = new ConcurrentHashMap<>();
+    private final Map<String, Object> requestResultMonitorMapping = new ConcurrentHashMap<>();
     private final Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
     private final Map<String, ByteBufferMessage> sendedMessage = new ConcurrentHashMap<>();
     private final ThreadLocal<ByteBufferMessage> messageThreadLocal = new ThreadLocal<>();
-    private final Semaphore semaphore = new Semaphore(1);
+    private final Semaphore maxClient = new Semaphore(1);
+    private final AtomicInteger invokeTimes = new AtomicInteger(0);
     private final Object sendLock = new Object();
-
-    private String name;
-    private LinkedBlockingQueue<ByteBufferMessage> invokeQueue;
 
     private volatile int retry = 0;
     private volatile boolean shutdown = false;
     private volatile ReadHandler readHandler;
     private volatile SocketChannel socketChannel;
 
-    public Client(String name) {
-        this(name, 100000);
-    }
+    private LinkedBlockingQueue<ByteBufferMessage> invokeQueue;
+    private Semaphore maxUnFinishRequest;
 
-    public Client(String name, int cap) {
+    private String name;
+
+    Client(String name, Integer maxQueueSize) {
         this.name = name;
-        this.invokeQueue = new LinkedBlockingQueue<>(cap);
+        this.invokeQueue = new LinkedBlockingQueue<>(maxQueueSize);
+        this.maxUnFinishRequest = new Semaphore(maxQueueSize / 2);
         clients.add(this);
     }
 
@@ -62,7 +58,7 @@ public class Client implements Runnable, ShutdownNode {
                     return;
                 }
                 try {
-                    semaphore.acquire();
+                    maxClient.acquire();
                 } catch (InterruptedException e) {
                     if (!this.shutdown) {
                         logger.error("", e);
@@ -98,7 +94,7 @@ public class Client implements Runnable, ShutdownNode {
                 socketChannel.connect(new InetSocketAddress("localhost", 80));
             } catch (Exception ex) {
                 retry++;
-                semaphore.release();
+                maxClient.release();
                 return;
             }
             retry = 0;
@@ -106,7 +102,15 @@ public class Client implements Runnable, ShutdownNode {
                 sendLock.notify();
             }
             Collection<ByteBufferMessage> requestMessages = sendedMessage.values();
-            logger.warn("重试发送的包的数字:" + requestMessages.size());
+            int retryPackage = 0;
+            for (ByteBufferMessage requestMessage : requestMessages) {
+                if (requestResultMonitorMapping.get(new String(requestMessage.getToken())) != null) {
+                    invokeQueue.add(requestMessage);
+                    retryPackage++;
+                }
+            }
+
+            logger.warn("重试发送的包的数字:" + retryPackage);
             invokeQueue.addAll(requestMessages);
             sendedMessage.clear();
             readHandler = new ReadHandler(this, socketChannel, executorServiceResult, false);
@@ -156,12 +160,12 @@ public class Client implements Runnable, ShutdownNode {
                     if (key.isReadable()) {
                         try {
                             if (!readHandler.doRead()) {
-                                semaphore.release();
+                                maxClient.release();
                                 return;
                             }
                         } catch (IOException ex) {
                             if (!shutdown) {
-                                semaphore.release();
+                                maxClient.release();
                                 return;
                             }
                         }
@@ -185,50 +189,22 @@ public class Client implements Runnable, ShutdownNode {
         }
     }
 
-    public Future<Object> invoke(Class clazz, String method, Serializable... args) {
+    public T invoke(Class clazz, String method, Object[] args) throws InterruptedException {
+        maxUnFinishRequest.acquire();
         final ByteBufferMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateRequestMessagePackage(clazz, method, args);
         String token = new String(requestMessage.getToken());
         logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
-        this.invokeQueue.add(requestMessage);
-        logger.debug("请求队列大小：" + invokeQueue.size());
-        final Object monitor = new Object();
-        requestResultFutureMapping.put(token, monitor);
-        return executorServiceInvoke.submit(() -> {
-            Object response = requestResultMapping.get(token);
-            if (response != null) {
-                return response;
-            }
-            synchronized (monitor) {
-                monitor.wait();
-            }
-            sendedMessage.remove(token);
-            return requestResultMapping.remove(token);
-        });
+        this.getInvokeQueue().add(requestMessage);
+        logger.debug("请求队列大小：" + this.getInvokeQueue().size());
+        addMonitor(token);
+        return invokeInternal(token);
     }
 
-    public Object invokeDirect(Class clazz, String method, Serializable[] args) {
-        final ByteBufferMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateRequestMessagePackage(clazz, method, args);
-        String token = new String(requestMessage.getToken());
-        logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
-        this.invokeQueue.add(requestMessage);
-        logger.debug("请求队列大小：" + invokeQueue.size());
-        final Object monitor = new Object();
-        requestResultFutureMapping.put(token, monitor);
-        Object response = requestResultMapping.remove(token);
-        if (response != null) {
-            sendedMessage.remove(token);
-            return response;
-        }
-        synchronized (monitor) {
-            try {
-                monitor.wait(30000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-                Thread.interrupted();
-                return null;
-            }
-        }
+    protected abstract T invokeInternal(String token) throws InterruptedException;
+
+    Object removeResourceByToken(String token) {
         sendedMessage.remove(token);
+        requestResultMonitorMapping.remove(token);
         return requestResultMapping.remove(token);
     }
 
@@ -255,15 +231,15 @@ public class Client implements Runnable, ShutdownNode {
         messageThreadLocal.remove();
     }
 
-    public void fillResult(byte[] token, Object result) {
+    void fillResult(byte[] token, Object result) {
         String tokenKey = new String(token);
         requestResultMapping.put(tokenKey, result);
-        Object objectFuture = requestResultFutureMapping.remove(tokenKey);
-        if (objectFuture == null) {
+        Object monitor = requestResultMonitorMapping.remove(tokenKey);
+        if (monitor == null) {
             return;
         }
-        synchronized (objectFuture) {
-            objectFuture.notify();
+        synchronized (monitor) {
+            monitor.notify();
         }
     }
 
@@ -273,24 +249,51 @@ public class Client implements Runnable, ShutdownNode {
         }
     }
 
+    private void addMonitor(String token) {
+        Object monitor = new Object();
+        requestResultMonitorMapping.put(token, monitor);
+    }
+
+    protected Object getMonitor(String token) {
+        return requestResultMonitorMapping.get(token);
+    }
+
+    protected void finishRequest() {
+        maxUnFinishRequest.release();
+    }
+
+    protected Object getResponse(String token) {
+        return requestResultMapping.get(token);
+    }
+
+    protected LinkedBlockingQueue<ByteBufferMessage> getInvokeQueue() {
+        return invokeQueue;
+    }
 
     public void shutdown() {
         if (this.shutdown) {
             return;
         }
         this.shutdown = true;
+        shutdownInternal();
         clientExecutor.shutdownNow();
-        executorServiceInvoke.shutdownNow();
         executorServiceRequest.shutdownNow();
         executorServiceResult.shutdownNow();
-        requestResultFutureMapping.clear();
+        requestResultMonitorMapping.clear();
         requestResultMapping.clear();
         invokeQueue.clear();
-        clients.clear();
+        clients.remove(this);
+    }
+
+    protected void shutdownInternal() {
     }
 
     @Override
     public boolean isShutdown() {
         return this.shutdown;
+    }
+
+    public String getName() {
+        return name;
     }
 }

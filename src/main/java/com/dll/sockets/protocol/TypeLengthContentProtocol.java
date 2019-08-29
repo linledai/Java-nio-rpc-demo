@@ -4,7 +4,6 @@ import com.dll.sockets.message.RequestMessage;
 import com.dll.sockets.message.ResponseMessage;
 import com.dll.sockets.message.SerializableRequestMessage;
 
-import java.io.Serializable;
 import java.util.UUID;
 
 public class TypeLengthContentProtocol {
@@ -96,13 +95,13 @@ public class TypeLengthContentProtocol {
         return message;
     }
 
-    public SerializableRequestMessage generateRequestMessagePackage(Class clazz, String method, Serializable[] args) {
+    public SerializableRequestMessage generateRequestMessagePackage(Class clazz, String method, Object[] args) {
         SerializableRequestMessage requestMessage = new SerializableRequestMessage();
         byte[] token = generateToken();
         requestMessage.setToken(token);
         requestMessage.setAccessService(clazz.getName());
         requestMessage.setMethodName(method);
-        requestMessage.setArgs((Object[]) args[0]);
+        requestMessage.setArgs(args);
         return requestMessage;
     }
 
