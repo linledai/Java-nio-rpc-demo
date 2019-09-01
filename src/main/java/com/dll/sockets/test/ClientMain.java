@@ -32,12 +32,12 @@ public class ClientMain {
         directClient.start();
         futureClient.start();
         long test1Begin = System.currentTimeMillis();
-        testService("directService");
-        long test1End = System.currentTimeMillis();
         testService("futureService");
+        long test1End = System.currentTimeMillis();
+        testService("directService");
         long test2End = System.currentTimeMillis();
-        logger.info("DirectClient cost:" + (test1End - test1Begin));
-        logger.info("FutureClient cost:" + (test2End - test1End));
+        logger.warn("DirectClient cost:" + (test1End - test1Begin));
+        logger.warn("FutureClient cost:" + (test2End - test1End));
         Runtime.getRuntime().exit(0);
     }
 
@@ -46,7 +46,7 @@ public class ClientMain {
         Service service = (Service) Context.getBean(serviceBeanName);
         Method method;
         try {
-            method = service.getClass().getMethod("echo", Integer.class);
+            method = service.getClass().getMethod("echoTest");
         } catch (NoSuchMethodException ex) {
             logger.error("", ex);
             return;
@@ -57,10 +57,10 @@ public class ClientMain {
             final Integer echoCount = i + 1;
             executorService.execute(() -> {
                 try {
-                    Object invoke = echoMethod.invoke(service, echoCount);
+                    Object invoke = echoMethod.invoke(service);
                     if (invoke != null) {
                         String echo = (String) invoke;
-                        logger.info(count.incrementAndGet() + " Response message:" + echo);
+                        logger.debug(count.incrementAndGet() + " Response message:" + echo);
                     } else {
                         logger.error(count.incrementAndGet() + " Response message is null.");
                     }

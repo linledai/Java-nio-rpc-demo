@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
@@ -26,12 +27,13 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
     private final ExecutorService executorServiceRequest = Executors.newFixedThreadPool(1);
     private final ExecutorService executorServiceResult = Executors.newFixedThreadPool(1);
     private final AtomicInteger sendCount = new AtomicInteger(0);
-    private final Map<String, Object> requestResultMonitorMapping = new ConcurrentHashMap<>();
+    private final Map<String, Object> requestResultMonitor = new ConcurrentHashMap<>();
     private final Map<String, Object> requestResultMapping = new ConcurrentHashMap<>();
     private final Map<String, ByteBufferMessage> sendedMessage = new ConcurrentHashMap<>();
-    private final ThreadLocal<ByteBufferMessage> messageThreadLocal = new ThreadLocal<>();
+    private final ThreadLocal<List<ByteBufferMessage>> messageThreadLocal = new ThreadLocal<>();
     private final Semaphore maxClient = new Semaphore(1);
     private final AtomicInteger invokeTimes = new AtomicInteger(0);
+    private final AtomicInteger nullFillResult = new AtomicInteger(0);
     private final Object sendLock = new Object();
 
     private volatile int retry = 0;
@@ -41,12 +43,14 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
 
     private LinkedBlockingQueue<ByteBufferMessage> invokeQueue;
     private Semaphore maxUnFinishRequest;
+    private int maxConcurrentRequest;
     private String name;
 
-    Client(String name, Integer maxQueueSize) {
+    Client(String name, Integer maxConcurrentRequest) {
         this.name = name;
-        this.invokeQueue = new LinkedBlockingQueue<>(maxQueueSize);
-        this.maxUnFinishRequest = new Semaphore(maxQueueSize / 2);
+        this.invokeQueue = new LinkedBlockingQueue<>(maxConcurrentRequest * 2);
+        this.maxConcurrentRequest = maxConcurrentRequest;
+        this.maxUnFinishRequest = new Semaphore(maxConcurrentRequest);
         clients.add(this);
     }
 
@@ -103,14 +107,14 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
             Collection<ByteBufferMessage> requestMessages = sendedMessage.values();
             int retryPackage = 0;
             for (ByteBufferMessage requestMessage : requestMessages) {
-                if (requestResultMonitorMapping.get(new String(requestMessage.getToken())) != null) {
-                    invokeQueue.add(requestMessage);
+                if (requestResultMonitor.get(new String(requestMessage.getToken())) != null) {
+                    getInvokeQueue().add(requestMessage);
                     retryPackage++;
                 }
             }
 
             logger.warn("重试发送的包的数字:" + retryPackage);
-            invokeQueue.addAll(requestMessages);
+            getInvokeQueue().addAll(requestMessages);
             sendedMessage.clear();
             readHandler = new ReadHandler(this, socketChannel, executorServiceResult, false);
             socketChannel.configureBlocking(false);
@@ -124,12 +128,12 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
                             return;
                         }
                         if (isWaitForRetry) {
-                            ByteBufferMessage requestMessage = messageThreadLocal.get();
+                            List<ByteBufferMessage> requestMessage = messageThreadLocal.get();
                             sendMsg(requestMessage);
-                            logger.warn("处理了一次失败的发送." + (requestMessage == null));
+                            logger.warn("处理了一次失败的发送." + (requestMessage == null || requestMessage.isEmpty()));
                             return;
                         } else {
-                            sendMsg(pullInvokeRequest());
+                            sendMsg(pullInvokeRequests());
                         }
                     } catch (IOException | InterruptedException e) {
                         if (!shutdown) {
@@ -147,7 +151,7 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
                     }
                 }
                 logger.info("Shutdown send.");
-                invokeQueue.clear();
+                getInvokeQueue().clear();
                 executorServiceRequest.shutdownNow();
             });
             while (!shutdown) {
@@ -192,49 +196,76 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
         maxUnFinishRequest.acquire();
         final ByteBufferMessage requestMessage = TypeLengthContentProtocol.defaultProtocol().generateRequestMessagePackage(clazz, method, args);
         String token = new String(requestMessage.getToken());
-        logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
-        this.getInvokeQueue().add(requestMessage);
-        logger.debug("请求队列大小：" + this.getInvokeQueue().size());
-        addMonitor(token);
-        return invokeInternal(token);
+        return invokeInternal(new ClientTask(token, requestMessage));
     }
 
-    abstract protected T invokeInternal(String token) throws InterruptedException;
+    abstract protected T invokeInternal(ClientTask clientTask) throws InterruptedException;
 
-    Object removeResourceByToken(String token) {
+    private Object removeResourceByToken(String token) {
         sendedMessage.remove(token);
-        requestResultMonitorMapping.remove(token);
+        requestResultMonitor.remove(token);
         return requestResultMapping.remove(token);
     }
 
-    private ByteBufferMessage pullInvokeRequest() throws InterruptedException {
-        ByteBufferMessage requestMessage = messageThreadLocal.get();
-        if (requestMessage != null) {
-            return requestMessage;
+    private List<ByteBufferMessage> pullInvokeRequests() throws InterruptedException {
+        List<ByteBufferMessage> requestMessages = messageThreadLocal.get();
+        if (requestMessages != null && requestMessages.size() > 0) {
+            return requestMessages;
+        } else {
+            requestMessages = new ArrayList<>();
         }
-        requestMessage = invokeQueue.poll(3000, TimeUnit.MILLISECONDS);
+        ByteBufferMessage requestMessage = getInvokeQueue().poll(3000, TimeUnit.MILLISECONDS);
         if (requestMessage == null) {
             return null;
         }
-        messageThreadLocal.set(requestMessage);
-        return requestMessage;
+        requestMessages.add(requestMessage);
+        for (int i = 1; i < maxConcurrentRequest; i++) {
+            ByteBufferMessage byteBufferMessage = getInvokeQueue().poll();
+            if (byteBufferMessage == null) {
+                break;
+            } else {
+                requestMessages.add(byteBufferMessage);
+            }
+        }
+        messageThreadLocal.set(requestMessages);
+        return requestMessages;
     }
 
-    private void sendMsg(ByteBufferMessage requestMessage) throws IOException {
-        if (requestMessage == null) {
+    private void sendMsg(List<ByteBufferMessage> requestMessages) throws IOException {
+        if (requestMessages == null) {
             return;
         }
-        socketChannel.write(requestMessage.toSendByteBuffer());
-        sendedMessage.put(new String(requestMessage.getToken()), requestMessage);
-        logger.debug("发送包的计数:" + sendCount.incrementAndGet());
+        ByteBuffer[] byteBuffers = new ByteBuffer[requestMessages.size()];
+        int packetSize = 0;
+        for (int i = 0; i < requestMessages.size(); i++) {
+            ByteBuffer byteBuffer = requestMessages.get(i).toSendByteBuffer();
+            byteBuffers[i] = byteBuffer;
+            packetSize += byteBuffer.remaining();
+        }
+        long write = 0L;
+        while (write != packetSize) {
+            write += socketChannel.write(byteBuffers);
+        }
+        for (ByteBufferMessage requestMessage : requestMessages) {
+            sendedMessage.put(new String(requestMessage.getToken()), requestMessage);
+            sendCount.incrementAndGet();
+        }
+        logger.debug("发送包的计数:" + sendCount.get());
         messageThreadLocal.remove();
+    }
+
+    private Object addMonitor(String token) {
+        requestResultMonitor.put(token, new Object());
+        return requestResultMonitor.get(token);
     }
 
     void fillResult(byte[] token, Object result) {
         String tokenKey = new String(token);
         requestResultMapping.put(tokenKey, result);
-        Object monitor = requestResultMonitorMapping.remove(tokenKey);
+        Object monitor = requestResultMonitor.remove(tokenKey);
         if (monitor == null) {
+            logger.warn(tokenKey + "未获取返回值.");
+            logger.warn("找不到对应线程数量:" + nullFillResult.incrementAndGet());
             return;
         }
         synchronized (monitor) {
@@ -248,24 +279,11 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
         }
     }
 
-    private void addMonitor(String token) {
-        Object monitor = new Object();
-        requestResultMonitorMapping.put(token, monitor);
-    }
-
-    protected Object getMonitor(String token) {
-        return requestResultMonitorMapping.get(token);
-    }
-
-    protected void finishRequest() {
+    private void finishRequest() {
         maxUnFinishRequest.release();
     }
 
-    protected Object getResponse(String token) {
-        return requestResultMapping.get(token);
-    }
-
-    protected LinkedBlockingQueue<ByteBufferMessage> getInvokeQueue() {
+    private LinkedBlockingQueue<ByteBufferMessage> getInvokeQueue() {
         return invokeQueue;
     }
 
@@ -278,7 +296,6 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
         clientExecutor.shutdownNow();
         executorServiceRequest.shutdownNow();
         executorServiceResult.shutdownNow();
-        requestResultMonitorMapping.clear();
         requestResultMapping.clear();
         invokeQueue.clear();
         clients.remove(this);
@@ -296,34 +313,36 @@ public abstract class Client<T> implements Runnable, ShutdownNode, InvocationHan
         return name;
     }
 
-    public class ClientFutureTask implements Callable<Object> {
+    public class ClientTask implements Callable<Object> {
 
         private String token;
+        private ByteBufferMessage requestMessage;
 
-        public ClientFutureTask(String token) {
+        public ClientTask(String token, ByteBufferMessage requestMessage) {
             this.token = token;
+            this.requestMessage = requestMessage;
         }
 
         @Override
         public Object call() {
-            Object response = getResponse(token);
-            if (response != null) {
-                removeResourceByToken(token);
-                finishRequest();
-                return response;
-            }
-            Object monitor = getMonitor(token);
+            Object response;
+            Object monitor = addMonitor(token);
             synchronized (monitor) {
                 try {
-                    monitor.wait(30000);
+                    logger.debug("Invoke 次数：" + invokeTimes.incrementAndGet());
+                    getInvokeQueue().add(requestMessage);
+                    logger.debug("请求队列大小：" + getInvokeQueue().size());
+                    monitor.wait();
                 } catch (InterruptedException e) {
                     logger.error("", e);
-                    Thread.interrupted();
                 } finally {
                     response = removeResourceByToken(token);
-                    finishRequest();
+                    if (response == null) {
+                        logger.warn(token + "未获取返回值.");
+                    }
                 }
             }
+            finishRequest();
             return response;
         }
     }

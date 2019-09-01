@@ -13,16 +13,17 @@ import java.util.Set;
 
 public class Context {
 
-    public static Map<String, Object> beanMap = new HashMap<>();
-    public static Map<Class, Object> annotationMap = new HashMap<>();
+    private static Map<String, Object> beanMap = new HashMap<>();
+    private static Map<Class, Object> annotationMap = new HashMap<>();
 
     public static void register(String serviceName, Object bean) {
         if (bean.getClass().isAnnotationPresent(RpcService.class)) {
-            for (Method method : bean.getClass().getDeclaredMethods()) {
+            Class<?> interfaceClass = bean.getClass().getInterfaces()[0];
+            for (Method method : interfaceClass.getDeclaredMethods()) {
                 for (Class annotationClass : Context.getAnnotationClasses()) {
                     if (method.isAnnotationPresent(annotationClass)) {
                         InvocationHandler annotationBean = (InvocationHandler) Context.getAnnotationBean(annotationClass);
-                        bean = Proxy.newProxyInstance(bean.getClass().getClassLoader(), bean.getClass().getInterfaces(), new BaseInvocationHandler(annotationBean, bean));
+                        bean = Proxy.newProxyInstance(bean.getClass().getClassLoader(), bean.getClass().getInterfaces(), new BaseInvocationHandler(annotationBean, bean, method));
                     }
                 }
             }
