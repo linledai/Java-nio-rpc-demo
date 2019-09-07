@@ -28,8 +28,13 @@ public class ServerSocketTask implements Runnable {
         ReadHandler mappingReadHandler = socketContext.get(socketChannel);
         synchronized (ServerSocketTask.class) {
             if (mappingReadHandler == null) {
-                this.readHandler = new ReadHandler(server, socketChannel, executorService);
-                socketContext.put(socketChannel, this.readHandler);
+                mappingReadHandler = socketContext.get(socketChannel);
+                if (mappingReadHandler == null) {
+                    this.readHandler = new ReadHandler(server, socketChannel, executorService);
+                    socketContext.put(socketChannel, this.readHandler);
+                } else {
+                    this.readHandler = mappingReadHandler;
+                }
             } else {
                 this.readHandler = mappingReadHandler;
             }
@@ -39,17 +44,17 @@ public class ServerSocketTask implements Runnable {
     @Override
     public void run() {
         try {
-            if (readHandler.doRead()) {
-                this.selectionKey.interestOps(SelectionKey.OP_READ);
-            } else {
+            if (!readHandler.doRead()) {
                 socketContext.remove(socketChannel);
             }
         } catch (Exception e) {
-            logger.error("", e);
+            if (!(e instanceof IOException)) {
+                logger.error("", e);
+            }
             try {
                 this.socketChannel.close();
             } catch (IOException ex) {
-                logger.warn("Close socket exception");
+                logger.error("Close socket exception", e);
             } finally {
                 socketContext.remove(socketChannel);
             }

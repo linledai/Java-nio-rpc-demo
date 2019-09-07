@@ -2,7 +2,7 @@ package com.dll.sockets.client;
 
 import com.dll.sockets.base.ShutdownNode;
 import com.dll.sockets.protocol.ReturnBusHandler;
-import com.dll.sockets.protocol.SerializeProtocol;
+import com.dll.sockets.protocol.serialize.SerializeFactory;
 
 import java.nio.channels.SocketChannel;
 
@@ -15,7 +15,7 @@ public class ClientBusHandler extends ReturnBusHandler {
     @Override
     protected void dealMsg() {
         final byte[] token = this.getMessage().getToken();
-        Object object = SerializeProtocol.deSerializeObject(this.getMessage().getObject());
+        Object object = SerializeFactory.buildSerializeHandler().deSerializeObject(this.getMessage().getObject(), getNode().getClassByResponseToken(new String(token)));
         ((Client) this.getNode()).fillResult(token, object);
     }
 }

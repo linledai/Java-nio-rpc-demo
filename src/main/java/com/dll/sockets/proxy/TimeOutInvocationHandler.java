@@ -16,7 +16,7 @@ public class TimeOutInvocationHandler implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         FutureClient client = (FutureClient) Context.getBean("futureClient");
-        Future<Object> invoke = client.invoke(proxy.getClass().getInterfaces()[0], method.getName(), args);
+        Future<Object> invoke = client.invoke(proxy.getClass().getInterfaces()[0], method.getName(), args, method.getReturnType());
         try {
             return invoke.get(timeoutSeconds, TimeUnit.MILLISECONDS);
         } catch (InterruptedException ex) {

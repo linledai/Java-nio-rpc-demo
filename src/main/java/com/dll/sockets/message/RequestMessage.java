@@ -4,6 +4,7 @@ import com.dll.sockets.protocol.TypeLengthContentProtocol;
 
 import java.nio.ByteBuffer;
 
+@Deprecated
 public class RequestMessage implements ByteBufferMessage {
     private MessageType type = MessageType.DEFAULT;
     private byte[] token;

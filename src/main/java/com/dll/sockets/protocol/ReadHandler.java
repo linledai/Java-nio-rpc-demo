@@ -41,9 +41,12 @@ public class ReadHandler {
     /**
      * socket stream not closed return true, if closed return false
      */
-    public boolean doRead() throws Exception {
+    public synchronized boolean doRead() throws Exception {
         if (socketChannel == null) {
             throw new NullPointerException("SocketChannel can not be null.");
+        }
+        if (!socketChannel.isOpen()) {
+            return false;
         }
         while (!node.isShutdown()) {
 //            Thread.yield();
@@ -66,7 +69,12 @@ public class ReadHandler {
                         remain--;
                     }
                     byteBuffer.clear();
-                    socketChannel.read(byteBuffer);
+                    int readAgain = socketChannel.read(byteBuffer);
+                    if (readAgain == -1) {
+                        return false;
+                    } else if (readAgain == 0) {
+                        return true;
+                    }
                     byteBuffer.flip();
                 }
             }
@@ -109,7 +117,7 @@ public class ReadHandler {
             System.arraycopy(dataContent, 0, content, 0, dataContent.length);
         }
 
-        logger.debug("解析包的计数：" + atomicInteger.incrementAndGet());
+        logger.info("解析包的计数：" + atomicInteger.incrementAndGet());
         if (server) {
             executorService.execute(new ServerBusHandler(node, socketChannel, content));
         } else {

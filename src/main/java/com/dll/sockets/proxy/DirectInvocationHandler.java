@@ -11,6 +11,7 @@ public class DirectInvocationHandler implements InvocationHandler {
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         DirectClient client = (DirectClient) Context.getBean("directClient");
-        return client.invoke(proxy.getClass().getInterfaces()[0], method.getName(), args);
+        return client.invoke(proxy.getClass().getInterfaces()[0], method.getName(), args,
+                method.getReturnType());
     }
 }

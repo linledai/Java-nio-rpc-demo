@@ -1,5 +1,6 @@
 package com.dll.sockets.server;
 
+import com.dll.sockets.base.ResponseTokenNodeContext;
 import com.dll.sockets.base.ShutdownNode;
 
 import java.net.InetSocketAddress;
@@ -11,7 +12,7 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server implements ShutdownNode {
+public class Server extends ResponseTokenNodeContext implements ShutdownNode {
 
     private ServerSocketChannel serverSocketChannel;
     private volatile boolean shutdown = false;
@@ -43,7 +44,6 @@ public class Server implements ShutdownNode {
                         socketChannel.configureBlocking(false);
                         socketChannel.register(selector, SelectionKey.OP_READ);
                     } else if (key.isReadable()) {
-                        key.interestOps(SelectionKey.OP_WRITE);
                         executorService.execute(new ServerSocketTask(this, key));
                         // Thread.yield();
                     }

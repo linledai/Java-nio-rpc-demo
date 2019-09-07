@@ -1,7 +1,7 @@
 package com.dll.sockets.message;
 
-import com.dll.sockets.protocol.SerializeProtocol;
 import com.dll.sockets.protocol.TypeLengthContentProtocol;
+import com.dll.sockets.protocol.serialize.SerializeFactory;
 
 import java.nio.ByteBuffer;
 
@@ -46,7 +46,7 @@ public class SerializableRequestMessage implements ByteBufferMessage {
     }
 
     public ByteBuffer toSendByteBuffer() {
-        byte[] bytes = SerializeProtocol.serializeObject(this);
+        byte[] bytes = SerializeFactory.buildSerializeHandler().serializeObject(this);
         int length = bytes.length;
         ByteBuffer byteBuffer = ByteBuffer.allocate(length + 8);
         byteBuffer.put(TypeLengthContentProtocol.defaultProtocol().intToByteArray(this.type.getValue()));

@@ -11,9 +11,9 @@ public class MyLogAspectInvocationHandler implements InvocationHandler {
     private static Logger logger = LoggerFactory.getLogger(MyLogAspectInvocationHandler.class);
 
     public Object around(Object proxy, Method method, Object[] args) throws Throwable {
-        logger.info("around before");
+        logger.debug("around before");
         Object object = method.invoke(proxy, args);
-        logger.info("around end");
+        logger.debug("around end");
         return object;
     }
 

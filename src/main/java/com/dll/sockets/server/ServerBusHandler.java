@@ -7,8 +7,8 @@ import com.dll.sockets.message.RequestMessage;
 import com.dll.sockets.message.ResponseMessage;
 import com.dll.sockets.message.SerializableRequestMessage;
 import com.dll.sockets.protocol.BusHandler;
-import com.dll.sockets.protocol.SerializeProtocol;
 import com.dll.sockets.protocol.TypeLengthContentProtocol;
+import com.dll.sockets.protocol.serialize.SerializeFactory;
 import com.dll.sockets.utils.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,7 +58,7 @@ public class ServerBusHandler extends BusHandler {
         } else {
             invoke = method.invoke(bean);
         }
-        ResponseMessage responseMessage = TypeLengthContentProtocol.defaultProtocol().generateReturnMessage(token, SerializeProtocol.serializeObject(invoke));
+        ResponseMessage responseMessage = TypeLengthContentProtocol.defaultProtocol().generateReturnMessage(token, SerializeFactory.buildSerializeHandler().serializeObject(invoke));
         synchronized (this.getSocketChannel()) {
             this.getSocketChannel().write(responseMessage.toSendByteBuffer());
         }

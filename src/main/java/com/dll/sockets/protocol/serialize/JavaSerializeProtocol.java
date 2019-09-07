@@ -1,12 +1,13 @@
-package com.dll.sockets.protocol;
+package com.dll.sockets.protocol.serialize;
 
+import com.dll.sockets.protocol.SerializeHandler;
 import com.dll.sockets.utils.LoggerUtils;
 
 import java.io.*;
 
-public class SerializeProtocol {
+public class JavaSerializeProtocol implements SerializeHandler {
 
-    public static byte[] serializeObject(Object object) {
+    public byte[] serializeObject(Object object) {
         ByteArrayOutputStream out;
         ObjectOutputStream objectOutputStream;
         try {
@@ -22,7 +23,7 @@ public class SerializeProtocol {
         }
     }
 
-    public static Object deSerializeObject(byte[] object) {
+    public Object deSerializeObject(byte[] object, Class clazz) {
         ByteArrayInputStream in = new ByteArrayInputStream(object);
         try {
             ObjectInputStream objectInputStream = new ObjectInputStream(in);

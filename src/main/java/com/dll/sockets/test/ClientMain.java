@@ -46,7 +46,7 @@ public class ClientMain {
         Service service = (Service) Context.getBean(serviceBeanName);
         Method method;
         try {
-            method = service.getClass().getMethod("echoTest");
+            method = service.getClass().getMethod("echo", Integer.class);
         } catch (NoSuchMethodException ex) {
             logger.error("", ex);
             return;
@@ -57,10 +57,10 @@ public class ClientMain {
             final Integer echoCount = i + 1;
             executorService.execute(() -> {
                 try {
-                    Object invoke = echoMethod.invoke(service);
+                    Object invoke = echoMethod.invoke(service, echoCount);
                     if (invoke != null) {
                         String echo = (String) invoke;
-                        logger.debug(count.incrementAndGet() + " Response message:" + echo);
+                        logger.info(count.incrementAndGet() + " Response message:" + echo);
                     } else {
                         logger.error(count.incrementAndGet() + " Response message is null.");
                     }

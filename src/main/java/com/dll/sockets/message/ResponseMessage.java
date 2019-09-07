@@ -9,7 +9,6 @@ public class ResponseMessage implements ByteBufferMessage {
     private byte[] token;
     private byte[] object;
 
-
     public ByteBuffer toSendByteBuffer() {
         int length = token.length + 4 + object.length;
         ByteBuffer byteBuffer = ByteBuffer.allocate(length + 8);

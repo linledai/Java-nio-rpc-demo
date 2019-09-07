@@ -3,6 +3,7 @@ package com.dll.sockets.protocol;
 import com.dll.sockets.message.RequestMessage;
 import com.dll.sockets.message.ResponseMessage;
 import com.dll.sockets.message.SerializableRequestMessage;
+import com.dll.sockets.protocol.serialize.SerializeFactory;
 
 import java.util.UUID;
 
@@ -25,6 +26,7 @@ public class TypeLengthContentProtocol {
         return (data[0] << 24) + (data[1] << 16) +(data[2] << 8) +data[3];
     }
 
+    @Deprecated
     public RequestMessage parseSendMessage(byte[] msg) {
         RequestMessage requestMessage = new RequestMessage();
         byte[] token = new byte[10];
@@ -42,6 +44,7 @@ public class TypeLengthContentProtocol {
         return requestMessage;
     }
 
+    @Deprecated
     public RequestMessage generateSendMessage(Class clazz, String method) {
         RequestMessage requestMessage = new RequestMessage();
         byte[] token = generateToken();
@@ -106,7 +109,7 @@ public class TypeLengthContentProtocol {
     }
 
     public SerializableRequestMessage parseRequestMessagePackage(byte[] msg) {
-        SerializableRequestMessage serializeRequestMessage = (SerializableRequestMessage) SerializeProtocol.deSerializeObject(msg);
+        SerializableRequestMessage serializeRequestMessage = (SerializableRequestMessage) SerializeFactory.buildSerializeHandler().deSerializeObject(msg, SerializableRequestMessage.class);
         return serializeRequestMessage;
     }
 }

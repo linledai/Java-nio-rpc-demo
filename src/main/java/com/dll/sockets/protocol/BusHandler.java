@@ -7,6 +7,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.channels.SocketChannel;
 
+/**
+ * For Client request Server
+ */
 public abstract class BusHandler implements Runnable {
 
     private static Logger logger = LoggerFactory.getLogger(BusHandler.class);
